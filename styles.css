@@ -418,6 +418,10 @@ button {
   font-weight: 800;
 }
 
+a.file-badge {
+  text-decoration: none;
+}
+
 .piece-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(120px, 1fr));
@@ -442,6 +446,32 @@ button {
 .piece-card strong,
 .piece-card p {
   margin: 0;
+}
+
+.piece-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+  flex-wrap: wrap;
+}
+
+.piece-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--accent-strong);
+  background: #fff;
+  text-decoration: none;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+button.piece-link {
+  cursor: pointer;
 }
 
 .piece-token {

@@ -1,4 +1,5 @@
-const STORAGE_KEY = "enigmaprint.projects.v1";
+const STORAGE_KEY = "enigmaprint.projects.v2";
+const HELPER_URL = "http://127.0.0.1:4777";
 
 const els = {
   projectList: document.querySelector("#projectList"),
@@ -32,7 +33,7 @@ let state = {
 
 async function bootstrap() {
   state.projects = loadProjects();
-  await loadGeneratedProjects();
+  await loadPublishedProjects();
   state.selectedProjectId = state.projects[0]?.id ?? null;
   els.startInput.value = new Date().toISOString().slice(0, 10);
   attachEvents();
@@ -83,10 +84,22 @@ function attachEvents() {
 
   els.resetButton.addEventListener("click", () => {
     localStorage.removeItem(STORAGE_KEY);
-    state.projects = seedProjects();
-    state.selectedProjectId = state.projects[0].id;
-    saveProjects();
-    render();
+    state.projects = [];
+    loadPublishedProjects().then(() => {
+      state.selectedProjectId = state.projects[0]?.id ?? null;
+      render();
+    });
+  });
+
+  els.pieceGrid.addEventListener("click", async (event) => {
+    const action = event.target.closest("[data-piece-action]");
+    if (!action) return;
+    const project = getSelectedProject();
+    const piece = project?.pieces.find((item) => item.id === action.dataset.pieceId);
+    if (!project || !piece) return;
+    if (action.dataset.pieceAction === "open") {
+      await openPieceWithHelper(project, piece);
+    }
   });
 }
 
@@ -118,14 +131,12 @@ function loadProjects() {
       localStorage.removeItem(STORAGE_KEY);
     }
   }
-  const projects = seedProjects();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
-  return projects;
+  return [];
 }
 
-async function loadGeneratedProjects() {
+async function loadPublishedProjects() {
   try {
-    const response = await fetch("generated/index.json", { cache: "no-store" });
+    const response = await fetch("projects/index.json", { cache: "no-store" });
     if (!response.ok) return;
     const generated = await response.json();
     if (!Array.isArray(generated.projects)) return;
@@ -138,7 +149,7 @@ async function loadGeneratedProjects() {
     state.projects = [...imported, ...state.projects.filter((project) => !imported.some((item) => item.id === project.id))];
     saveProjects();
   } catch {
-    // Static file viewing and first-run states may not expose generated/index.json.
+    // Static file viewing and first-run states may not expose projects/index.json.
   }
 }
 
@@ -152,9 +163,30 @@ function getSelectedProject() {
 
 function render() {
   const project = getSelectedProject();
-  if (!project) return;
+  if (!project) {
+    renderEmptyState();
+    return;
+  }
   renderProjectList(project);
   renderProject(project);
+}
+
+function renderEmptyState() {
+  els.projectList.innerHTML = "";
+  els.projectTitle.textContent = "No projects yet";
+  els.projectStatus.textContent = "empty";
+  els.projectStatus.className = "status-pill";
+  els.projectSummary.textContent = "Publish or import a project manifest to start tracking pieces.";
+  els.metrics.innerHTML = [metric("0", "projects"), metric("0", "pieces"), metric("A1 mini", "printer")].join("");
+  els.artworkPreview.innerHTML = `
+    <div class="artwork-placeholder" aria-hidden="true"></div>
+    <p>Generated artwork will appear here after loading a project.</p>
+  `;
+  els.todayTitle.textContent = "Next print";
+  els.todayPiece.innerHTML = `<div class="piece-preview"></div><div class="piece-meta"><strong>No queued piece.</strong><p>Import a manifest or generate a puzzle locally.</p></div>`;
+  els.fileList.innerHTML = "";
+  els.pieceGrid.innerHTML = "";
+  els.markPrintedButton.disabled = true;
 }
 
 function renderProjectList(selectedProject) {
@@ -209,7 +241,7 @@ function renderProject(project) {
         <strong>${escapeHtml(file.name)}</strong>
         <span>${escapeHtml(file.description)}</span>
       </span>
-      <span class="file-badge">${escapeHtml(file.type)}</span>
+      ${file.path ? `<a class="file-badge" href="${escapeHtml(file.path)}">${escapeHtml(file.type)}</a>` : `<span class="file-badge">${escapeHtml(file.type)}</span>`}
     </div>
   `).join("");
 
@@ -219,6 +251,10 @@ function renderProject(project) {
       <strong>${escapeHtml(piece.name)}</strong>
       <p>${escapeHtml(piece.filename)}</p>
       <p>${piece.status === "printed" ? "Printed" : formatDate(piece.scheduledFor)}</p>
+      <div class="piece-actions">
+        ${piece.path ? `<a class="piece-link" href="${escapeHtml(piece.path)}">Download</a>` : ""}
+        ${piece.path ? `<button class="piece-link" type="button" data-piece-action="open" data-piece-id="${escapeHtml(piece.id)}">Open</button>` : ""}
+      </div>
     </article>
   `).join("");
 }
@@ -253,6 +289,7 @@ function renderTodayPiece(piece) {
       <strong>${escapeHtml(piece.name)}</strong>
       <span>${formatDate(piece.scheduledFor)} · ${escapeHtml(piece.filename)}</span>
       <p>${escapeHtml(piece.note)}</p>
+      ${piece.path ? `<a class="piece-link" href="${escapeHtml(piece.path)}">Download 3MF</a>` : ""}
     </div>
   `;
 }
@@ -322,6 +359,7 @@ function normalizeProjectManifest(manifest) {
       day: piece.day || index + 1,
       name: piece.name || `Day ${index + 1} reveal`,
       filename: piece.filename || `${slug}-day-${String(index + 1).padStart(2, "0")}.stl`,
+      path: piece.path || piece.url || "",
       scheduledFor: piece.scheduledFor || addDays(new Date().toISOString().slice(0, 10), index),
       status: piece.status || "pending",
       printedAt: piece.printedAt || null,
@@ -330,59 +368,21 @@ function normalizeProjectManifest(manifest) {
   };
 }
 
-function seedProjects() {
-  return [
-    {
-      id: "project-current",
-      name: "Week 20: Clockwork Garden",
-      slug: "week-20-clockwork-garden",
-      status: "active",
-      summary: "A seven-day bas-relief jigsaw designed for suspense: each daily print reveals only a fragment of the final AI-generated scene.",
-      targetPrinter: "A1 mini",
-      createdAt: "2026-05-10T00:00:00.000Z",
-      updatedAt: "2026-05-10T00:00:00.000Z",
-      files: [
-        { name: "manifest.json", type: "JSON", description: "Project metadata and piece schedule" },
-        { name: "source-hidden.png", type: "PNG", description: "AI image stored privately until completion" },
-        { name: "day-01.3mf ... day-07.3mf", type: "3MF", description: "Daily printable plates" }
-      ],
-      assets: {},
-      pieces: buildPieces("week-20-clockwork-garden", "2026-05-11", 7, 2)
-    },
-    {
-      id: "project-complete",
-      name: "Week 19: Lunar Archive",
-      slug: "week-19-lunar-archive",
-      status: "complete",
-      summary: "Completed proof-of-concept puzzle with chunky interlocks, engraved day labels, and no supports.",
-      targetPrinter: "A1 mini",
-      createdAt: "2026-05-03T00:00:00.000Z",
-      updatedAt: "2026-05-09T00:00:00.000Z",
-      files: [
-        { name: "manifest.json", type: "JSON", description: "Archived project metadata" },
-        { name: "assembled-preview.jpg", type: "JPG", description: "Final reveal photo" },
-        { name: "print-pack.zip", type: "ZIP", description: "All daily STL and 3MF outputs" }
-      ],
-      assets: {},
-      pieces: buildPieces("week-19-lunar-archive", "2026-05-04", 7, 7)
-    }
-  ];
-}
-
-function buildPieces(slug, startDate, count, printedCount) {
-  return Array.from({ length: count }, (_, index) => {
-    const day = index + 1;
-    return {
-      id: `${slug}-${day}`,
-      day,
-      name: `Day ${day} reveal`,
-      filename: `${slug}-day-${String(day).padStart(2, "0")}.3mf`,
-      scheduledFor: addDays(startDate, index),
-      status: day <= printedCount ? "printed" : "pending",
-      printedAt: day <= printedCount ? `${addDays(startDate, index)}T07:30:00.000Z` : null,
-      note: "A no-support puzzle piece sized for a short morning reveal cycle."
-    };
-  });
+async function openPieceWithHelper(project, piece) {
+  try {
+    const response = await fetch(`${HELPER_URL}/open-piece`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId: project.id,
+        pieceId: piece.id,
+        path: piece.path
+      })
+    });
+    if (!response.ok) throw new Error(await response.text());
+  } catch {
+    window.alert("Local helper is not running yet. Download the 3MF and open it in Bambu Studio, or start scripts/local_helper.py.");
+  }
 }
 
 function addDays(dateString, days) {

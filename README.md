@@ -96,6 +96,14 @@ The current known-good multicolour Bambu 3MF path is:
 
 This emits one `.3mf` per puzzle piece. In Bambu Studio, `base_colour_1` should open on filament `1` and `reveal_colour_2` should open on filament `2`. The details are documented in `docs/generator.md`.
 
+For one-click local opening from the published dashboard, run:
+
+```bash
+python3 scripts/local_helper.py
+```
+
+The helper listens on `http://127.0.0.1:4777` and can open selected workspace 3MF files in Bambu Studio. Slicing and print submission are the next local-helper endpoints to add.
+
 The next practical step is the relief-art generator:
 
 ```text
