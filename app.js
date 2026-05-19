@@ -91,7 +91,11 @@ function attachEvents() {
     });
   });
 
-  els.pieceGrid.addEventListener("click", async (event) => {
+  els.pieceGrid.addEventListener("click", handlePieceActionClick);
+  els.todayPiece.addEventListener("click", handlePieceActionClick);
+}
+
+async function handlePieceActionClick(event) {
     const action = event.target.closest("[data-piece-action]");
     if (!action) return;
     const project = getSelectedProject();
@@ -100,7 +104,6 @@ function attachEvents() {
     if (action.dataset.pieceAction === "open") {
       await openPieceWithHelper(project, piece);
     }
-  });
 }
 
 async function importManifest(event) {
@@ -289,7 +292,12 @@ function renderTodayPiece(piece) {
       <strong>${escapeHtml(piece.name)}</strong>
       <span>${formatDate(piece.scheduledFor)} · ${escapeHtml(piece.filename)}</span>
       <p>${escapeHtml(piece.note)}</p>
-      ${piece.path ? `<a class="piece-link" href="${escapeHtml(piece.path)}">Download 3MF</a>` : ""}
+      ${piece.path ? `
+        <div class="piece-actions">
+          <a class="piece-link" href="${escapeHtml(piece.path)}">Download 3MF</a>
+          <button class="piece-link" type="button" data-piece-action="open" data-piece-id="${escapeHtml(piece.id)}">Open</button>
+        </div>
+      ` : ""}
     </div>
   `;
 }
@@ -419,7 +427,9 @@ function escapeHtml(value) {
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
   if (location.protocol === "file:") return;
-  navigator.serviceWorker.register("service-worker.js").catch(() => {});
+  navigator.serviceWorker.register("service-worker.js").then((registration) => {
+    registration.update();
+  }).catch(() => {});
 }
 
 bootstrap();
