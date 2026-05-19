@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Enigma Print</title>
+    <meta name="theme-color" content="#196a60">
+    <meta name="description" content="Daily mystery 3D print puzzle projects.">
+    <link rel="manifest" href="site.webmanifest">
+    <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Project navigation">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">E</div>
+          <div>
+            <h1>Enigma Print</h1>
+            <p>Daily mystery prints</p>
+          </div>
+        </div>
+
+        <div class="sidebar-actions">
+          <button class="primary-button" id="newProjectButton" type="button">
+            <span aria-hidden="true">+</span>
+            New weekly puzzle
+          </button>
+          <button class="secondary-button" id="importButton" type="button">Import manifest</button>
+          <input id="importInput" type="file" accept="application/json,.json" hidden>
+        </div>
+
+        <nav class="project-list" id="projectList" aria-label="Puzzle projects"></nav>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow" id="storageMode">Local MVP storage</p>
+            <h2 id="projectTitle">Loading...</h2>
+          </div>
+          <div class="topbar-actions">
+            <button class="icon-button" id="exportButton" type="button" title="Export project manifest" aria-label="Export project manifest">
+              <span aria-hidden="true">⇩</span>
+            </button>
+            <button class="icon-button" id="resetButton" type="button" title="Reset sample data" aria-label="Reset sample data">
+              <span aria-hidden="true">↻</span>
+            </button>
+          </div>
+        </header>
+
+        <section class="summary-band" aria-label="Project summary">
+          <div class="summary-copy">
+            <p class="status-pill" id="projectStatus">Active</p>
+            <p id="projectSummary"></p>
+          </div>
+          <div class="metrics" id="metrics"></div>
+        </section>
+
+        <section class="content-grid">
+          <div class="panel reveal-panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Reveal</p>
+                <h3>Generated artwork</h3>
+              </div>
+            </div>
+            <div id="artworkPreview" class="artwork-preview"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Today</p>
+                <h3 id="todayTitle">Next print</h3>
+              </div>
+              <button class="secondary-button" id="markPrintedButton" type="button">Mark printed</button>
+            </div>
+            <div class="today-piece" id="todayPiece"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Archive</p>
+                <h3>Project files</h3>
+              </div>
+            </div>
+            <div class="file-list" id="fileList"></div>
+          </div>
+        </section>
+
+        <section class="panel timeline-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Week plan</p>
+              <h3>Daily reveal pieces</h3>
+            </div>
+          </div>
+          <div class="piece-grid" id="pieceGrid"></div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="projectDialog">
+      <form method="dialog" class="dialog-form" id="projectForm">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow">Generate queue</p>
+            <h2>New weekly puzzle</h2>
+          </div>
+          <button class="icon-button" value="cancel" type="submit" aria-label="Close dialog">
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+
+        <label>
+          Project name
+          <input id="nameInput" name="name" required maxlength="80" placeholder="Week 21 mystery">
+        </label>
+
+        <label>
+          Secret prompt hint
+          <input id="hintInput" name="hint" maxlength="120" placeholder="Ancient mechanical garden">
+        </label>
+
+        <div class="form-row">
+          <label>
+            Pieces
+            <input id="piecesInput" name="pieces" required min="3" max="14" value="7" type="number">
+          </label>
+          <label>
+            Start date
+            <input id="startInput" name="startDate" required type="date">
+          </label>
+        </div>
+
+        <menu class="dialog-actions">
+          <button class="secondary-button" value="cancel" type="submit">Cancel</button>
+          <button class="primary-button" id="createProjectSubmit" value="default" type="submit">Create project</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <script src="app.js" type="module"></script>
+  </body>
+</html>

@@ -1,0 +1,54 @@
+{
+  "name": "Night Compass",
+  "mode": "surprise-multicolour-jigsaw",
+  "createdAt": "2026-05-17T03:16:00Z",
+  "pieceCount": 4,
+  "dimensionsMm": {
+    "width": 39.6,
+    "height": 39.6,
+    "baseThickness": 2.4,
+    "totalHeight": 3.5999999999999996
+  },
+  "bambuStudioImport": "Open each 3MF and choose Yes when Bambu asks to load as a single object with multiple parts.",
+  "pieces": [
+    {
+      "filename": "piece-01.3mf",
+      "areaMm2": 361.6,
+      "baseTriangles": 1980,
+      "artTriangles": 552,
+      "baseNonmanifoldEdges": 0,
+      "artNonmanifoldEdges": 0
+    },
+    {
+      "filename": "piece-02.3mf",
+      "areaMm2": 351.9,
+      "baseTriangles": 1972,
+      "artTriangles": 720,
+      "baseNonmanifoldEdges": 0,
+      "artNonmanifoldEdges": 0
+    },
+    {
+      "filename": "piece-03.3mf",
+      "areaMm2": 351.9,
+      "baseTriangles": 1972,
+      "artTriangles": 484,
+      "baseNonmanifoldEdges": 0,
+      "artNonmanifoldEdges": 0
+    },
+    {
+      "filename": "piece-04.3mf",
+      "areaMm2": 342.0,
+      "baseTriangles": 1948,
+      "artTriangles": 412,
+      "baseNonmanifoldEdges": 0,
+      "artNonmanifoldEdges": 0
+    }
+  ],
+  "files": [
+    "preview.png",
+    "piece-01.3mf",
+    "piece-02.3mf",
+    "piece-03.3mf",
+    "piece-04.3mf"
+  ]
+}

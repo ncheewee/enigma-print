@@ -1,0 +1,54 @@
+{
+  "name": "Moon Gate",
+  "mode": "surprise-multicolour-jigsaw",
+  "createdAt": "2026-05-17T03:15:24Z",
+  "pieceCount": 4,
+  "dimensionsMm": {
+    "width": 40.0,
+    "height": 40.0,
+    "baseThickness": 2.4,
+    "totalHeight": 3.5999999999999996
+  },
+  "bambuStudioImport": "Open each 3MF and choose Yes when Bambu asks to load as a single object with multiple parts.",
+  "pieces": [
+    {
+      "filename": "piece-01.3mf",
+      "areaMm2": 401.3,
+      "baseTriangles": 2084,
+      "artTriangles": 652,
+      "baseNonmanifoldEdges": 0,
+      "artNonmanifoldEdges": 0
+    },
+    {
+      "filename": "piece-02.3mf",
+      "areaMm2": 390.4,
+      "baseTriangles": 2076,
+      "artTriangles": 876,
+      "baseNonmanifoldEdges": 0,
+      "artNonmanifoldEdges": 0
+    },
+    {
+      "filename": "piece-03.3mf",
+      "areaMm2": 390.4,
+      "baseTriangles": 2076,
+      "artTriangles": 392,
+      "baseNonmanifoldEdges": 0,
+      "artNonmanifoldEdges": 0
+    },
+    {
+      "filename": "piece-04.3mf",
+      "areaMm2": 379.5,
+      "baseTriangles": 2060,
+      "artTriangles": 360,
+      "baseNonmanifoldEdges": 0,
+      "artNonmanifoldEdges": 0
+    }
+  ],
+  "files": [
+    "preview.png",
+    "piece-01.3mf",
+    "piece-02.3mf",
+    "piece-03.3mf",
+    "piece-04.3mf"
+  ]
+}

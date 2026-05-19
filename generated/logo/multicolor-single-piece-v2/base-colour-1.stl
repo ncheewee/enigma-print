@@ -1,0 +1,86 @@
+solid base_colour_1
+  facet normal 0.000000 0.000000 0.000000
+    outer loop
+      vertex 0.000000 0.000000 2.400000
+      vertex 40.000000 0.000000 2.400000
+      vertex 40.000000 25.000000 2.400000
+    endloop
+  endfacet
+  facet normal 0.000000 0.000000 0.000000
+    outer loop
+      vertex 0.000000 0.000000 2.400000
+      vertex 40.000000 25.000000 2.400000
+      vertex 0.000000 25.000000 2.400000
+    endloop
+  endfacet
+  facet normal 0.000000 0.000000 0.000000
+    outer loop
+      vertex 0.000000 25.000000 0.000000
+      vertex 40.000000 25.000000 0.000000
+      vertex 40.000000 0.000000 0.000000
+    endloop
+  endfacet
+  facet normal 0.000000 0.000000 0.000000
+    outer loop
+      vertex 0.000000 25.000000 0.000000
+      vertex 40.000000 0.000000 0.000000
+      vertex 0.000000 0.000000 0.000000
+    endloop
+  endfacet
+  facet normal 0.000000 0.000000 0.000000
+    outer loop
+      vertex 0.000000 0.000000 0.000000
+      vertex 40.000000 0.000000 0.000000
+      vertex 40.000000 0.000000 2.400000
+    endloop
+  endfacet
+  facet normal 0.000000 0.000000 0.000000
+    outer loop
+      vertex 0.000000 0.000000 0.000000
+      vertex 40.000000 0.000000 2.400000
+      vertex 0.000000 0.000000 2.400000
+    endloop
+  endfacet
+  facet normal 0.000000 0.000000 0.000000
+    outer loop
+      vertex 40.000000 0.000000 0.000000
+      vertex 40.000000 25.000000 0.000000
+      vertex 40.000000 25.000000 2.400000
+    endloop
+  endfacet
+  facet normal 0.000000 0.000000 0.000000
+    outer loop
+      vertex 40.000000 0.000000 0.000000
+      vertex 40.000000 25.000000 2.400000
+      vertex 40.000000 0.000000 2.400000
+    endloop
+  endfacet
+  facet normal 0.000000 0.000000 0.000000
+    outer loop
+      vertex 40.000000 25.000000 0.000000
+      vertex 0.000000 25.000000 0.000000
+      vertex 0.000000 25.000000 2.400000
+    endloop
+  endfacet
+  facet normal 0.000000 0.000000 0.000000
+    outer loop
+      vertex 40.000000 25.000000 0.000000
+      vertex 0.000000 25.000000 2.400000
+      vertex 40.000000 25.000000 2.400000
+    endloop
+  endfacet
+  facet normal 0.000000 0.000000 0.000000
+    outer loop
+      vertex 0.000000 25.000000 0.000000
+      vertex 0.000000 0.000000 0.000000
+      vertex 0.000000 0.000000 2.400000
+    endloop
+  endfacet
+  facet normal 0.000000 0.000000 0.000000
+    outer loop
+      vertex 0.000000 25.000000 0.000000
+      vertex 0.000000 0.000000 2.400000
+      vertex 0.000000 25.000000 2.400000
+    endloop
+  endfacet
+endsolid base_colour_1

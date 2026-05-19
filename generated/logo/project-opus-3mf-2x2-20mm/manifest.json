@@ -1,0 +1,19 @@
+{
+  "name": "Project Opus",
+  "mode": "multicolour-3mf-jigsaw-logo",
+  "createdAt": "2026-05-17T02:01:37Z",
+  "dimensionsMm": {
+    "width": 40.0,
+    "height": 40.0,
+    "totalHeight": 4.0
+  },
+  "pieceCount": 4,
+  "files": [
+    "preview.png",
+    "piece-01.3mf",
+    "piece-02.3mf",
+    "piece-03.3mf",
+    "piece-04.3mf"
+  ],
+  "bambuStudio": "Each file is one physical jigsaw piece. 3MF outputs contain base and raised text material bodies with preset colours."
+}

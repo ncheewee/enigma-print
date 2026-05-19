@@ -1,0 +1,102 @@
+{
+  "id": "week-21-geometry-fit-test",
+  "name": "Week 21: Geometry Fit Test",
+  "slug": "week-21-geometry-fit-test",
+  "status": "generated",
+  "summary": "Geometry-first MVP puzzle: seven interlocking STL pieces ready for fit testing.",
+  "targetPrinter": "A1 mini",
+  "createdAt": "2026-05-10T13:11:46Z",
+  "updatedAt": "2026-05-10T13:11:46Z",
+  "generator": {
+    "version": 1,
+    "mode": "geometry-fit-test",
+    "boardWidthMm": 140.0,
+    "boardHeightMm": 84.0,
+    "thicknessMm": 4.0,
+    "pieceCount": 7
+  },
+  "files": [
+    {
+      "name": "manifest.json",
+      "type": "JSON",
+      "description": "Project metadata"
+    },
+    {
+      "name": "preview.svg",
+      "type": "SVG",
+      "description": "Top-down piece layout preview"
+    }
+  ],
+  "pieces": [
+    {
+      "id": "week-21-geometry-fit-test-1",
+      "day": 1,
+      "name": "Day 1 reveal",
+      "filename": "week-21-geometry-fit-test-day-01.stl",
+      "scheduledFor": "2026-05-11",
+      "status": "pending",
+      "printedAt": null,
+      "note": "Geometry fit-test piece with flat left edge and tab right edge."
+    },
+    {
+      "id": "week-21-geometry-fit-test-2",
+      "day": 2,
+      "name": "Day 2 reveal",
+      "filename": "week-21-geometry-fit-test-day-02.stl",
+      "scheduledFor": "2026-05-12",
+      "status": "pending",
+      "printedAt": null,
+      "note": "Geometry fit-test piece with slot left edge and slot right edge."
+    },
+    {
+      "id": "week-21-geometry-fit-test-3",
+      "day": 3,
+      "name": "Day 3 reveal",
+      "filename": "week-21-geometry-fit-test-day-03.stl",
+      "scheduledFor": "2026-05-13",
+      "status": "pending",
+      "printedAt": null,
+      "note": "Geometry fit-test piece with tab left edge and tab right edge."
+    },
+    {
+      "id": "week-21-geometry-fit-test-4",
+      "day": 4,
+      "name": "Day 4 reveal",
+      "filename": "week-21-geometry-fit-test-day-04.stl",
+      "scheduledFor": "2026-05-14",
+      "status": "pending",
+      "printedAt": null,
+      "note": "Geometry fit-test piece with slot left edge and slot right edge."
+    },
+    {
+      "id": "week-21-geometry-fit-test-5",
+      "day": 5,
+      "name": "Day 5 reveal",
+      "filename": "week-21-geometry-fit-test-day-05.stl",
+      "scheduledFor": "2026-05-15",
+      "status": "pending",
+      "printedAt": null,
+      "note": "Geometry fit-test piece with tab left edge and tab right edge."
+    },
+    {
+      "id": "week-21-geometry-fit-test-6",
+      "day": 6,
+      "name": "Day 6 reveal",
+      "filename": "week-21-geometry-fit-test-day-06.stl",
+      "scheduledFor": "2026-05-16",
+      "status": "pending",
+      "printedAt": null,
+      "note": "Geometry fit-test piece with slot left edge and slot right edge."
+    },
+    {
+      "id": "week-21-geometry-fit-test-7",
+      "day": 7,
+      "name": "Day 7 reveal",
+      "filename": "week-21-geometry-fit-test-day-07.stl",
+      "scheduledFor": "2026-05-17",
+      "status": "pending",
+      "printedAt": null,
+      "note": "Geometry fit-test piece with tab left edge and flat right edge."
+    }
+  ]
+}

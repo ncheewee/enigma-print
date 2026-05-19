@@ -1,0 +1,19 @@
+{
+  "name": "Project Opus",
+  "mode": "single-object-jigsaw-logo",
+  "createdAt": "2026-05-16T10:03:11Z",
+  "dimensionsMm": {
+    "width": 72.0,
+    "height": 72.0,
+    "totalHeight": 4.4
+  },
+  "pieceCount": 4,
+  "files": [
+    "preview.png",
+    "piece-01.stl",
+    "piece-02.stl",
+    "piece-03.stl",
+    "piece-04.stl"
+  ],
+  "bambuStudio": "Each STL is one physical jigsaw piece. Import and print one file per daily piece."
+}

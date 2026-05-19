@@ -1,0 +1,61 @@
+{
+  "name": "Orbit Shrine",
+  "mode": "surprise-multicolour-jigsaw",
+  "format": "bambu-project",
+  "createdAt": "2026-05-19T11:50:28Z",
+  "pieceCount": 4,
+  "dimensionsMm": {
+    "width": 50.0,
+    "height": 50.0,
+    "irregularOuterSilhouette": true,
+    "sideBevel": true,
+    "baseThickness": 2.4,
+    "totalHeight": 3.5999999999999996
+  },
+  "bambuStudioImport": "Open each 3MF and choose Yes when Bambu asks to load as a single object with multiple parts.",
+  "filamentAssignment": {
+    "base_colour_1": 1,
+    "reveal_colour_2": 2
+  },
+  "pieces": [
+    {
+      "filename": "piece-01.3mf",
+      "areaMm2": 401.3,
+      "baseTriangles": 452,
+      "artTriangles": 196,
+      "baseNonmanifoldEdges": 0,
+      "artNonmanifoldEdges": 0
+    },
+    {
+      "filename": "piece-02.3mf",
+      "areaMm2": 349.5,
+      "baseTriangles": 468,
+      "artTriangles": 280,
+      "baseNonmanifoldEdges": 0,
+      "artNonmanifoldEdges": 0
+    },
+    {
+      "filename": "piece-03.3mf",
+      "areaMm2": 351.6,
+      "baseTriangles": 444,
+      "artTriangles": 200,
+      "baseNonmanifoldEdges": 0,
+      "artNonmanifoldEdges": 0
+    },
+    {
+      "filename": "piece-04.3mf",
+      "areaMm2": 346.6,
+      "baseTriangles": 444,
+      "artTriangles": 828,
+      "baseNonmanifoldEdges": 0,
+      "artNonmanifoldEdges": 0
+    }
+  ],
+  "files": [
+    "preview.png",
+    "piece-01.3mf",
+    "piece-02.3mf",
+    "piece-03.3mf",
+    "piece-04.3mf"
+  ]
+}

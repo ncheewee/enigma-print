@@ -1,0 +1,17 @@
+{
+  "name": "Project Opus",
+  "mode": "multicolour-logo-tile",
+  "createdAt": "2026-05-16T09:33:35Z",
+  "dimensionsMm": {
+    "width": 80.0,
+    "height": 50.0,
+    "totalHeight": 3.2
+  },
+  "files": [
+    "project-opus-base.stl",
+    "project-opus-text.stl",
+    "preview.png",
+    "text-mask.png"
+  ],
+  "bambuStudio": "Import base and text STL together as one object/assembly, then assign different filament colours."
+}

@@ -1,0 +1,23 @@
+{
+  "name": "Project Opus",
+  "mode": "multicolour-jigsaw-logo",
+  "createdAt": "2026-05-16T09:49:29Z",
+  "dimensionsMm": {
+    "width": 72.0,
+    "height": 72.0,
+    "totalHeight": 4.4
+  },
+  "pieceCount": 4,
+  "files": [
+    "preview.png",
+    "piece-01-colour-1-base.stl",
+    "piece-01-colour-2-text.stl",
+    "piece-02-colour-1-base.stl",
+    "piece-02-colour-2-text.stl",
+    "piece-03-colour-1-base.stl",
+    "piece-03-colour-2-text.stl",
+    "piece-04-colour-1-base.stl",
+    "piece-04-colour-2-text.stl"
+  ],
+  "bambuStudio": "For each piece, import the colour-1 base and colour-2 text STLs together so they share coordinates, then assign filament colours."
+}

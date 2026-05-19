@@ -1,0 +1,14 @@
+{
+  "name": "Project Opus",
+  "mode": "simple-multicolor-3mf",
+  "createdAt": "2026-05-17T02:07:44Z",
+  "files": [
+    "project-opus-simple-multicolor.3mf",
+    "preview.png"
+  ],
+  "dimensionsMm": {
+    "width": 40.0,
+    "height": 40.0,
+    "totalHeight": 4.0
+  }
+}

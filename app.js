@@ -1,0 +1,425 @@
+const STORAGE_KEY = "enigmaprint.projects.v1";
+
+const els = {
+  projectList: document.querySelector("#projectList"),
+  projectTitle: document.querySelector("#projectTitle"),
+  projectStatus: document.querySelector("#projectStatus"),
+  projectSummary: document.querySelector("#projectSummary"),
+  metrics: document.querySelector("#metrics"),
+  artworkPreview: document.querySelector("#artworkPreview"),
+  todayTitle: document.querySelector("#todayTitle"),
+  todayPiece: document.querySelector("#todayPiece"),
+  fileList: document.querySelector("#fileList"),
+  pieceGrid: document.querySelector("#pieceGrid"),
+  markPrintedButton: document.querySelector("#markPrintedButton"),
+  exportButton: document.querySelector("#exportButton"),
+  resetButton: document.querySelector("#resetButton"),
+  newProjectButton: document.querySelector("#newProjectButton"),
+  importButton: document.querySelector("#importButton"),
+  importInput: document.querySelector("#importInput"),
+  dialog: document.querySelector("#projectDialog"),
+  form: document.querySelector("#projectForm"),
+  nameInput: document.querySelector("#nameInput"),
+  hintInput: document.querySelector("#hintInput"),
+  piecesInput: document.querySelector("#piecesInput"),
+  startInput: document.querySelector("#startInput")
+};
+
+let state = {
+  projects: [],
+  selectedProjectId: null
+};
+
+async function bootstrap() {
+  state.projects = loadProjects();
+  await loadGeneratedProjects();
+  state.selectedProjectId = state.projects[0]?.id ?? null;
+  els.startInput.value = new Date().toISOString().slice(0, 10);
+  attachEvents();
+  render();
+  registerServiceWorker();
+}
+
+function attachEvents() {
+  els.newProjectButton.addEventListener("click", () => els.dialog.showModal());
+  els.importButton.addEventListener("click", () => els.importInput.click());
+  els.importInput.addEventListener("change", importManifest);
+
+  els.form.addEventListener("submit", (event) => {
+    if (event.submitter?.value === "cancel") return;
+    event.preventDefault();
+    const project = createProjectFromForm(new FormData(els.form));
+    state.projects = [project, ...state.projects];
+    state.selectedProjectId = project.id;
+    saveProjects();
+    els.form.reset();
+    els.startInput.value = new Date().toISOString().slice(0, 10);
+    els.dialog.close();
+    render();
+  });
+
+  els.markPrintedButton.addEventListener("click", () => {
+    const project = getSelectedProject();
+    const nextPiece = project?.pieces.find((piece) => piece.status !== "printed");
+    if (!project || !nextPiece) return;
+    nextPiece.status = "printed";
+    nextPiece.printedAt = new Date().toISOString();
+    project.updatedAt = new Date().toISOString();
+    saveProjects();
+    render();
+  });
+
+  els.exportButton.addEventListener("click", () => {
+    const project = getSelectedProject();
+    if (!project) return;
+    const blob = new Blob([JSON.stringify(project, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${project.slug}.manifest.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  });
+
+  els.resetButton.addEventListener("click", () => {
+    localStorage.removeItem(STORAGE_KEY);
+    state.projects = seedProjects();
+    state.selectedProjectId = state.projects[0].id;
+    saveProjects();
+    render();
+  });
+}
+
+async function importManifest(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  try {
+    const manifest = JSON.parse(await file.text());
+    const project = normalizeProjectManifest(manifest);
+    state.projects = [project, ...state.projects.filter((item) => item.id !== project.id)];
+    state.selectedProjectId = project.id;
+    saveProjects();
+    render();
+  } catch (error) {
+    window.alert(`Could not import manifest: ${error.message}`);
+  } finally {
+    event.target.value = "";
+  }
+}
+
+function loadProjects() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    try {
+      const projects = JSON.parse(saved);
+      if (Array.isArray(projects) && projects.length > 0) return projects;
+    } catch {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  }
+  const projects = seedProjects();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+  return projects;
+}
+
+async function loadGeneratedProjects() {
+  try {
+    const response = await fetch("generated/index.json", { cache: "no-store" });
+    if (!response.ok) return;
+    const generated = await response.json();
+    if (!Array.isArray(generated.projects)) return;
+
+    const imported = generated.projects.map(normalizeProjectManifest);
+    const existing = new Map(state.projects.map((project) => [project.id, project]));
+    for (const project of imported) {
+      existing.set(project.id, { ...existing.get(project.id), ...project });
+    }
+    state.projects = [...imported, ...state.projects.filter((project) => !imported.some((item) => item.id === project.id))];
+    saveProjects();
+  } catch {
+    // Static file viewing and first-run states may not expose generated/index.json.
+  }
+}
+
+function saveProjects() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.projects));
+}
+
+function getSelectedProject() {
+  return state.projects.find((project) => project.id === state.selectedProjectId) ?? state.projects[0];
+}
+
+function render() {
+  const project = getSelectedProject();
+  if (!project) return;
+  renderProjectList(project);
+  renderProject(project);
+}
+
+function renderProjectList(selectedProject) {
+  els.projectList.innerHTML = "";
+  state.projects.forEach((project) => {
+    const printed = project.pieces.filter((piece) => piece.status === "printed").length;
+    const button = document.createElement("button");
+    button.className = `project-nav-item ${project.id === selectedProject.id ? "active" : ""}`;
+    button.type = "button";
+    button.innerHTML = `
+      <span>
+        <strong>${escapeHtml(project.name)}</strong>
+        <span>${printed}/${project.pieces.length} pieces printed</span>
+      </span>
+      <span class="nav-status ${project.status === "complete" ? "complete" : ""}">${project.status}</span>
+    `;
+    button.addEventListener("click", () => {
+      state.selectedProjectId = project.id;
+      render();
+    });
+    els.projectList.append(button);
+  });
+}
+
+function renderProject(project) {
+  const printed = project.pieces.filter((piece) => piece.status === "printed").length;
+  const nextPiece = project.pieces.find((piece) => piece.status !== "printed");
+  const completion = Math.round((printed / project.pieces.length) * 100);
+  const displayStatus = getProjectStatus(project, printed);
+
+  els.projectTitle.textContent = project.name;
+  els.projectStatus.textContent = displayStatus;
+  els.projectStatus.className = `status-pill ${displayStatus === "complete" ? "complete" : ""}`;
+  els.projectSummary.textContent = project.summary;
+  els.markPrintedButton.disabled = !nextPiece;
+  els.todayTitle.textContent = nextPiece ? `Day ${nextPiece.day}` : "Puzzle complete";
+  renderArtworkPreview(project);
+
+  els.metrics.innerHTML = [
+    metric(`${printed}/${project.pieces.length}`, "pieces printed"),
+    metric(`${completion}%`, "assembled"),
+    metric(project.targetPrinter, "printer")
+  ].join("");
+
+  els.todayPiece.innerHTML = nextPiece
+    ? renderTodayPiece(nextPiece)
+    : `<div class="piece-preview"></div><div class="piece-meta"><strong>All pieces are printed.</strong><p>The finished puzzle can be assembled now.</p></div>`;
+
+  els.fileList.innerHTML = project.files.map((file) => `
+    <div class="file-row">
+      <span>
+        <strong>${escapeHtml(file.name)}</strong>
+        <span>${escapeHtml(file.description)}</span>
+      </span>
+      <span class="file-badge">${escapeHtml(file.type)}</span>
+    </div>
+  `).join("");
+
+  els.pieceGrid.innerHTML = project.pieces.map((piece) => `
+    <article class="piece-card ${piece.status === "printed" ? "printed" : "pending"}">
+      <div class="piece-token">${piece.day}</div>
+      <strong>${escapeHtml(piece.name)}</strong>
+      <p>${escapeHtml(piece.filename)}</p>
+      <p>${piece.status === "printed" ? "Printed" : formatDate(piece.scheduledFor)}</p>
+    </article>
+  `).join("");
+}
+
+function renderArtworkPreview(project) {
+  const source = project.assets?.sourceHidden || project.assets?.preview || null;
+  if (source) {
+    els.artworkPreview.innerHTML = `
+      <img src="${escapeHtml(source)}" alt="${escapeHtml(project.name)} generated artwork">
+      <p>${getProjectStatus(project) === "complete" ? "Final reveal is unlocked." : "Stored as a hidden reveal asset for this generated week."}</p>
+    `;
+    return;
+  }
+
+  els.artworkPreview.innerHTML = `
+    <div class="artwork-placeholder" aria-hidden="true"></div>
+    <p>Generated artwork will appear here after importing or loading a generator manifest.</p>
+  `;
+}
+
+function getProjectStatus(project, printed = null) {
+  const printedCount = printed ?? project.pieces.filter((piece) => piece.status === "printed").length;
+  if (printedCount === project.pieces.length) return "complete";
+  if (printedCount === 0 && project.status === "generated") return "generated";
+  return "active";
+}
+
+function renderTodayPiece(piece) {
+  return `
+    <div class="piece-preview" aria-hidden="true"></div>
+    <div class="piece-meta">
+      <strong>${escapeHtml(piece.name)}</strong>
+      <span>${formatDate(piece.scheduledFor)} · ${escapeHtml(piece.filename)}</span>
+      <p>${escapeHtml(piece.note)}</p>
+    </div>
+  `;
+}
+
+function metric(value, label) {
+  return `<div class="metric"><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`;
+}
+
+function createProjectFromForm(formData) {
+  const name = String(formData.get("name") || "").trim();
+  const hint = String(formData.get("hint") || "Unknown weekly mystery").trim();
+  const pieceCount = Number(formData.get("pieces") || 7);
+  const startDate = String(formData.get("startDate"));
+  const slug = slugify(name);
+
+  return {
+    id: crypto.randomUUID(),
+    name,
+    slug,
+    status: "active",
+    summary: `A ${pieceCount}-day AI generated puzzle queued from the hint: ${hint}. Final image remains hidden until assembly.`,
+    targetPrinter: "A1 mini",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    files: [
+      { name: `${slug}.manifest.json`, type: "JSON", description: "Project metadata for Google Drive sync" },
+      { name: `${slug}-source.png`, type: "PNG", description: "Hidden AI source image" },
+      { name: `${slug}-plate.3mf`, type: "3MF", description: "Full reference plate for slicing checks" }
+    ],
+    pieces: Array.from({ length: pieceCount }, (_, index) => {
+      const day = index + 1;
+      return {
+        id: crypto.randomUUID(),
+        day,
+        name: `Mystery piece ${day}`,
+        filename: `${slug}-day-${String(day).padStart(2, "0")}.3mf`,
+        scheduledFor: addDays(startDate, index),
+        status: "pending",
+        note: "Print this piece overnight, then add it to the weekly assembly tray."
+      };
+    })
+  };
+}
+
+function normalizeProjectManifest(manifest) {
+  if (!manifest || typeof manifest !== "object") {
+    throw new Error("Manifest must be a JSON object.");
+  }
+  if (!manifest.name || !Array.isArray(manifest.pieces)) {
+    throw new Error("Manifest needs a name and pieces array.");
+  }
+
+  const slug = manifest.slug || slugify(manifest.name);
+  return {
+    id: manifest.id || slug,
+    name: manifest.name,
+    slug,
+    status: manifest.status || "generated",
+    summary: manifest.summary || "Generated Enigma Print puzzle.",
+    targetPrinter: manifest.targetPrinter || "A1 mini",
+    createdAt: manifest.createdAt || new Date().toISOString(),
+    updatedAt: manifest.updatedAt || new Date().toISOString(),
+    assets: manifest.assets || {},
+    files: Array.isArray(manifest.files) ? manifest.files : [],
+    pieces: manifest.pieces.map((piece, index) => ({
+      id: piece.id || `${slug}-${index + 1}`,
+      day: piece.day || index + 1,
+      name: piece.name || `Day ${index + 1} reveal`,
+      filename: piece.filename || `${slug}-day-${String(index + 1).padStart(2, "0")}.stl`,
+      scheduledFor: piece.scheduledFor || addDays(new Date().toISOString().slice(0, 10), index),
+      status: piece.status || "pending",
+      printedAt: piece.printedAt || null,
+      note: piece.note || "Generated puzzle piece."
+    }))
+  };
+}
+
+function seedProjects() {
+  return [
+    {
+      id: "project-current",
+      name: "Week 20: Clockwork Garden",
+      slug: "week-20-clockwork-garden",
+      status: "active",
+      summary: "A seven-day bas-relief jigsaw designed for suspense: each daily print reveals only a fragment of the final AI-generated scene.",
+      targetPrinter: "A1 mini",
+      createdAt: "2026-05-10T00:00:00.000Z",
+      updatedAt: "2026-05-10T00:00:00.000Z",
+      files: [
+        { name: "manifest.json", type: "JSON", description: "Project metadata and piece schedule" },
+        { name: "source-hidden.png", type: "PNG", description: "AI image stored privately until completion" },
+        { name: "day-01.3mf ... day-07.3mf", type: "3MF", description: "Daily printable plates" }
+      ],
+      assets: {},
+      pieces: buildPieces("week-20-clockwork-garden", "2026-05-11", 7, 2)
+    },
+    {
+      id: "project-complete",
+      name: "Week 19: Lunar Archive",
+      slug: "week-19-lunar-archive",
+      status: "complete",
+      summary: "Completed proof-of-concept puzzle with chunky interlocks, engraved day labels, and no supports.",
+      targetPrinter: "A1 mini",
+      createdAt: "2026-05-03T00:00:00.000Z",
+      updatedAt: "2026-05-09T00:00:00.000Z",
+      files: [
+        { name: "manifest.json", type: "JSON", description: "Archived project metadata" },
+        { name: "assembled-preview.jpg", type: "JPG", description: "Final reveal photo" },
+        { name: "print-pack.zip", type: "ZIP", description: "All daily STL and 3MF outputs" }
+      ],
+      assets: {},
+      pieces: buildPieces("week-19-lunar-archive", "2026-05-04", 7, 7)
+    }
+  ];
+}
+
+function buildPieces(slug, startDate, count, printedCount) {
+  return Array.from({ length: count }, (_, index) => {
+    const day = index + 1;
+    return {
+      id: `${slug}-${day}`,
+      day,
+      name: `Day ${day} reveal`,
+      filename: `${slug}-day-${String(day).padStart(2, "0")}.3mf`,
+      scheduledFor: addDays(startDate, index),
+      status: day <= printedCount ? "printed" : "pending",
+      printedAt: day <= printedCount ? `${addDays(startDate, index)}T07:30:00.000Z` : null,
+      note: "A no-support puzzle piece sized for a short morning reveal cycle."
+    };
+  });
+}
+
+function addDays(dateString, days) {
+  const date = new Date(`${dateString}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function formatDate(dateString) {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    weekday: "short"
+  }).format(new Date(`${dateString}T00:00:00`));
+}
+
+function slugify(value) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 64) || "weekly-puzzle";
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  if (location.protocol === "file:") return;
+  navigator.serviceWorker.register("service-worker.js").catch(() => {});
+}
+
+bootstrap();

@@ -1,0 +1,24 @@
+{
+  "name": "Multicolour single-piece diagnostic",
+  "mode": "bambu-project-3mf",
+  "createdAt": "2026-05-17T02:17:06Z",
+  "files": [
+    "enigma-block-mark-bambu-project.3mf",
+    "enigma-block-mark-generic.3mf",
+    "base-colour-1.3mf",
+    "raised-colour-2.3mf",
+    "base-colour-1.stl",
+    "raised-colour-2.stl",
+    "preview.png"
+  ],
+  "dimensionsMm": {
+    "width": 40.0,
+    "height": 25.0,
+    "baseThickness": 2.4,
+    "totalHeight": 3.5999999999999996
+  },
+  "meshChecks": {
+    "baseNonmanifoldEdges": 0,
+    "markNonmanifoldEdges": 0
+  }
+}

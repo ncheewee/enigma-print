@@ -1,0 +1,17 @@
+{
+  "name": "Enigma Print",
+  "short_name": "Enigma",
+  "description": "Daily mystery 3D print puzzle projects.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f6f7f4",
+  "theme_color": "#196a60",
+  "icons": [
+    {
+      "src": "assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

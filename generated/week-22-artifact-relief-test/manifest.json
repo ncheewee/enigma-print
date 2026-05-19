@@ -1,0 +1,109 @@
+{
+  "id": "week-22-artifact-relief-test",
+  "name": "Week 22: Artifact Relief Test",
+  "slug": "week-22-artifact-relief-test",
+  "status": "generated",
+  "summary": "Raised-relief MVP puzzle: seven interlocking STL pieces with a printable artifact motif.",
+  "targetPrinter": "A1 mini",
+  "createdAt": "2026-05-10T13:18:03Z",
+  "updatedAt": "2026-05-10T13:18:03Z",
+  "generator": {
+    "version": 1,
+    "mode": "raised-relief",
+    "reliefTheme": "artifact",
+    "boardWidthMm": 140.0,
+    "boardHeightMm": 84.0,
+    "thicknessMm": 4.0,
+    "reliefHeightMm": 0.8,
+    "pieceCount": 7
+  },
+  "files": [
+    {
+      "name": "manifest.json",
+      "type": "JSON",
+      "description": "Project metadata"
+    },
+    {
+      "name": "preview.svg",
+      "type": "SVG",
+      "description": "Top-down piece layout preview"
+    },
+    {
+      "name": "source-hidden.svg",
+      "type": "SVG",
+      "description": "Clean final reveal artwork"
+    }
+  ],
+  "pieces": [
+    {
+      "id": "week-22-artifact-relief-test-1",
+      "day": 1,
+      "name": "Day 1 reveal",
+      "filename": "week-22-artifact-relief-test-day-01.stl",
+      "scheduledFor": "2026-05-18",
+      "status": "pending",
+      "printedAt": null,
+      "note": "Raised-relief piece with flat left edge and tab right edge."
+    },
+    {
+      "id": "week-22-artifact-relief-test-2",
+      "day": 2,
+      "name": "Day 2 reveal",
+      "filename": "week-22-artifact-relief-test-day-02.stl",
+      "scheduledFor": "2026-05-19",
+      "status": "pending",
+      "printedAt": null,
+      "note": "Raised-relief piece with slot left edge and slot right edge."
+    },
+    {
+      "id": "week-22-artifact-relief-test-3",
+      "day": 3,
+      "name": "Day 3 reveal",
+      "filename": "week-22-artifact-relief-test-day-03.stl",
+      "scheduledFor": "2026-05-20",
+      "status": "pending",
+      "printedAt": null,
+      "note": "Raised-relief piece with tab left edge and tab right edge."
+    },
+    {
+      "id": "week-22-artifact-relief-test-4",
+      "day": 4,
+      "name": "Day 4 reveal",
+      "filename": "week-22-artifact-relief-test-day-04.stl",
+      "scheduledFor": "2026-05-21",
+      "status": "pending",
+      "printedAt": null,
+      "note": "Raised-relief piece with slot left edge and slot right edge."
+    },
+    {
+      "id": "week-22-artifact-relief-test-5",
+      "day": 5,
+      "name": "Day 5 reveal",
+      "filename": "week-22-artifact-relief-test-day-05.stl",
+      "scheduledFor": "2026-05-22",
+      "status": "pending",
+      "printedAt": null,
+      "note": "Raised-relief piece with tab left edge and tab right edge."
+    },
+    {
+      "id": "week-22-artifact-relief-test-6",
+      "day": 6,
+      "name": "Day 6 reveal",
+      "filename": "week-22-artifact-relief-test-day-06.stl",
+      "scheduledFor": "2026-05-23",
+      "status": "pending",
+      "printedAt": null,
+      "note": "Raised-relief piece with slot left edge and slot right edge."
+    },
+    {
+      "id": "week-22-artifact-relief-test-7",
+      "day": 7,
+      "name": "Day 7 reveal",
+      "filename": "week-22-artifact-relief-test-day-07.stl",
+      "scheduledFor": "2026-05-24",
+      "status": "pending",
+      "printedAt": null,
+      "note": "Raised-relief piece with tab left edge and flat right edge."
+    }
+  ]
+}

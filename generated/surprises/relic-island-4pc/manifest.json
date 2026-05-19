@@ -1,0 +1,55 @@
+{
+  "name": "Relic Island",
+  "mode": "surprise-multicolour-jigsaw",
+  "createdAt": "2026-05-17T03:31:27Z",
+  "pieceCount": 4,
+  "dimensionsMm": {
+    "width": 50.0,
+    "height": 50.0,
+    "irregularOuterSilhouette": true,
+    "baseThickness": 2.4,
+    "totalHeight": 3.5999999999999996
+  },
+  "bambuStudioImport": "Open each 3MF and choose Yes when Bambu asks to load as a single object with multiple parts.",
+  "pieces": [
+    {
+      "filename": "piece-01.3mf",
+      "areaMm2": 331.8,
+      "baseTriangles": 2068,
+      "artTriangles": 196,
+      "baseNonmanifoldEdges": 0,
+      "artNonmanifoldEdges": 0
+    },
+    {
+      "filename": "piece-02.3mf",
+      "areaMm2": 354.8,
+      "baseTriangles": 2148,
+      "artTriangles": 204,
+      "baseNonmanifoldEdges": 0,
+      "artNonmanifoldEdges": 0
+    },
+    {
+      "filename": "piece-03.3mf",
+      "areaMm2": 389.3,
+      "baseTriangles": 2124,
+      "artTriangles": 380,
+      "baseNonmanifoldEdges": 0,
+      "artNonmanifoldEdges": 0
+    },
+    {
+      "filename": "piece-04.3mf",
+      "areaMm2": 347.0,
+      "baseTriangles": 2140,
+      "artTriangles": 36,
+      "baseNonmanifoldEdges": 0,
+      "artNonmanifoldEdges": 0
+    }
+  ],
+  "files": [
+    "preview.png",
+    "piece-01.3mf",
+    "piece-02.3mf",
+    "piece-03.3mf",
+    "piece-04.3mf"
+  ]
+}
