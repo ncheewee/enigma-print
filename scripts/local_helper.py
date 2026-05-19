@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 BAMBU_STUDIO = Path("/Applications/BambuStudio.app")
+BAMBU_STUDIO_CLI = BAMBU_STUDIO / "Contents/MacOS/BambuStudio"
 HOST = "127.0.0.1"
 PORT = 4777
 
@@ -39,7 +40,7 @@ class Handler(BaseHTTPRequestHandler):
             self.open_piece()
             return
         if path == "/slice-piece":
-            self.send_error(501, "Slicing endpoint is planned but not enabled yet.")
+            self.slice_piece()
             return
         self.send_error(404, "Unknown endpoint")
 
@@ -52,6 +53,44 @@ class Handler(BaseHTTPRequestHandler):
             return
         subprocess.run(["open", "-a", str(BAMBU_STUDIO), str(piece_path)], check=True)
         self.send_json({"ok": True, "opened": str(piece_path)})
+
+    def slice_piece(self) -> None:
+        payload = self.read_json()
+        relative_path = payload.get("path", "")
+        piece_path = resolve_workspace_path(relative_path)
+        if not piece_path.exists():
+            self.send_error(404, f"File not found: {relative_path}")
+            return
+        if not BAMBU_STUDIO_CLI.exists():
+            self.send_error(404, f"Bambu Studio CLI not found: {BAMBU_STUDIO_CLI}")
+            return
+
+        output_dir = ROOT / "generated" / "sliced" / piece_path.parent.name / piece_path.stem
+        output_dir.mkdir(parents=True, exist_ok=True)
+        result = subprocess.run(
+            [str(BAMBU_STUDIO_CLI), "--slice", "0", "--outputdir", str(output_dir), str(piece_path)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            self.send_json(
+                {
+                    "ok": False,
+                    "returnCode": result.returncode,
+                    "stdout": result.stdout[-4000:],
+                    "stderr": result.stderr[-4000:],
+                },
+                status=500,
+            )
+            return
+
+        outputs = [
+            str(path.relative_to(ROOT))
+            for path in sorted(output_dir.iterdir())
+            if path.is_file()
+        ]
+        self.send_json({"ok": True, "sliced": str(piece_path), "outputDir": str(output_dir), "outputs": outputs})
 
     def read_json(self) -> dict:
         length = int(self.headers.get("Content-Length", "0"))

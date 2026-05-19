@@ -104,6 +104,9 @@ async function handlePieceActionClick(event) {
     if (action.dataset.pieceAction === "open") {
       await openPieceWithHelper(project, piece);
     }
+    if (action.dataset.pieceAction === "slice") {
+      await slicePieceWithHelper(project, piece);
+    }
 }
 
 async function importManifest(event) {
@@ -257,6 +260,7 @@ function renderProject(project) {
       <div class="piece-actions">
         ${piece.path ? `<a class="piece-link" href="${escapeHtml(piece.path)}">Download</a>` : ""}
         ${piece.path ? `<button class="piece-link" type="button" data-piece-action="open" data-piece-id="${escapeHtml(piece.id)}">Open</button>` : ""}
+        ${piece.path ? `<button class="piece-link" type="button" data-piece-action="slice" data-piece-id="${escapeHtml(piece.id)}">Slice</button>` : ""}
       </div>
     </article>
   `).join("");
@@ -296,6 +300,7 @@ function renderTodayPiece(piece) {
         <div class="piece-actions">
           <a class="piece-link" href="${escapeHtml(piece.path)}">Download 3MF</a>
           <button class="piece-link" type="button" data-piece-action="open" data-piece-id="${escapeHtml(piece.id)}">Open</button>
+          <button class="piece-link" type="button" data-piece-action="slice" data-piece-id="${escapeHtml(piece.id)}">Slice</button>
         </div>
       ` : ""}
     </div>
@@ -390,6 +395,25 @@ async function openPieceWithHelper(project, piece) {
     if (!response.ok) throw new Error(await response.text());
   } catch {
     window.alert("Local helper is not running yet. Download the 3MF and open it in Bambu Studio, or start scripts/local_helper.py.");
+  }
+}
+
+async function slicePieceWithHelper(project, piece) {
+  try {
+    const response = await fetch(`${HELPER_URL}/slice-piece`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId: project.id,
+        pieceId: piece.id,
+        path: piece.path
+      })
+    });
+    if (!response.ok) throw new Error(await response.text());
+    const result = await response.json();
+    window.alert(`Sliced ${piece.filename}\n${result.outputs.join("\n")}`);
+  } catch {
+    window.alert("Local helper could not slice this piece. Check that scripts/local_helper.py is running and Bambu Studio is installed.");
   }
 }
 

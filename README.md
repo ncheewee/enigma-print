@@ -85,16 +85,17 @@ For the first multicolour jigsaw logo test:
 
 This creates four jigsaw pieces, each split into a base-colour STL and raised text-colour STL.
 
-The current known-good multicolour Bambu 3MF path is:
+The current non-AMS Bambu 3MF path is:
 
 ```bash
 .venv/bin/python scripts/generate_surprise_jigsaw_3mf.py \
-  --out generated/surprises/orbit-shrine-4pc-v6-reference-style \
+  --out generated/surprises/orbit-shrine-4pc-single \
   --name "Orbit Shrine" \
-  --design orbit-shrine
+  --design orbit-shrine \
+  --colour-mode single
 ```
 
-This emits one `.3mf` per puzzle piece. In Bambu Studio, `base_colour_1` should open on filament `1` and `reveal_colour_2` should open on filament `2`. The details are documented in `docs/generator.md`.
+This emits one `.3mf` per puzzle piece. In Bambu Studio, all geometry should be assigned to filament `1`; the reveal is visible as raised relief, not a second colour. The AMS/multicolour path is documented in `docs/generator.md`.
 
 For one-click local opening from the published dashboard, run:
 
@@ -102,7 +103,7 @@ For one-click local opening from the published dashboard, run:
 python3 scripts/local_helper.py
 ```
 
-The helper listens on `http://127.0.0.1:4777` and can open selected workspace 3MF files in Bambu Studio. Slicing and print submission are the next local-helper endpoints to add.
+The helper listens on `http://127.0.0.1:4777` and can open or slice selected workspace 3MF files with Bambu Studio. Print submission is the next local-helper endpoint to prove.
 
 The next practical step is the relief-art generator:
 

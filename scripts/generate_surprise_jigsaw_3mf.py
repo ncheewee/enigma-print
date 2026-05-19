@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate a small four-piece, two-colour surprise jigsaw puzzle."""
+"""Generate a small four-piece surprise jigsaw puzzle."""
 
 from __future__ import annotations
 
@@ -443,6 +443,64 @@ def write_bambu_project_3mf(
         copy_reference_thumbnails(package)
 
 
+def write_bambu_single_colour_project_3mf(
+    path: Path,
+    base_triangles: Sequence[Triangle],
+    art_triangles: Sequence[Triangle],
+    width: float,
+    height: float,
+    total_height: float,
+) -> None:
+    del total_height
+    rels_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+ <Relationship Target="/3D/3dmodel.model" Id="rel-1" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>
+ <Relationship Target="/Metadata/plate_1.png" Id="rel-2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>
+ <Relationship Target="/Metadata/plate_1.png" Id="rel-4" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-middle"/>
+ <Relationship Target="/Metadata/plate_1_small.png" Id="rel-5" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-small"/>
+</Relationships>
+"""
+    content_types_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>
+  <Default Extension="config" ContentType="application/octet-stream"/>
+</Types>
+"""
+    with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as package:
+        package.writestr("[Content_Types].xml", content_types_xml)
+        package.writestr("_rels/.rels", rels_xml)
+        package.writestr("3D/3dmodel.model", bambu_single_model_xml(base_triangles, art_triangles, width, height))
+        package.writestr(
+            "Metadata/model_settings.config",
+            bambu_single_colour_part_model_settings_xml(path.name, len(base_triangles), len(art_triangles)),
+        )
+        package.writestr("Metadata/project_settings.config", bambu_single_colour_project_settings_json())
+        package.writestr("Metadata/filament_sequence.json", '{"plate_1":{"nozzle_sequence":[],"optimal_assignment":[],"sequence":[]}}')
+        package.writestr(
+            "Metadata/slice_info.config",
+            """<?xml version="1.0" encoding="UTF-8"?>
+<config>
+  <header>
+    <header_item key="X-BBL-Client-Type" value="slicer"/>
+    <header_item key="X-BBL-Client-Version" value="02.06.00.51"/>
+  </header>
+</config>
+""",
+        )
+        package.writestr(
+            "Metadata/cut_information.xml",
+            """<?xml version="1.0" encoding="utf-8"?>
+<objects>
+ <object id="1">
+  <cut_id id="0" check_sum="1" connectors_cnt="0"/>
+ </object>
+</objects>
+""",
+        )
+        copy_reference_thumbnails(package)
+
+
 def build_model_xml(base_triangles: Sequence[Triangle], art_triangles: Sequence[Triangle]) -> str:
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
@@ -645,6 +703,52 @@ def bambu_part_model_settings_xml(source_file: str, base_faces: int, art_faces: 
 """
 
 
+def bambu_single_colour_part_model_settings_xml(source_file: str, base_faces: int, art_faces: int) -> str:
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<config>
+  <object id="3">
+    <metadata key="name" value="enigma_print_piece"/>
+    <metadata key="extruder" value="1"/>
+    <metadata face_count="{base_faces + art_faces}"/>
+    <part id="1" subtype="normal_part">
+      <metadata key="name" value="base_colour_1"/>
+      <metadata key="extruder" value="1"/>
+      <metadata key="matrix" value="1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1"/>
+      <metadata key="source_file" value="{source_file}"/>
+      <metadata key="source_object_id" value="0"/>
+      <metadata key="source_volume_id" value="0"/>
+      <mesh_stat face_count="{base_faces}" edges_fixed="0" degenerate_facets="0" facets_removed="0" facets_reversed="0" backwards_edges="0"/>
+    </part>
+    <part id="2" subtype="normal_part">
+      <metadata key="name" value="reveal_relief_same_filament"/>
+      <metadata key="extruder" value="1"/>
+      <metadata key="matrix" value="1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1"/>
+      <metadata key="source_file" value="{source_file}"/>
+      <metadata key="source_object_id" value="0"/>
+      <metadata key="source_volume_id" value="1"/>
+      <mesh_stat face_count="{art_faces}" edges_fixed="0" degenerate_facets="0" facets_removed="0" facets_reversed="0" backwards_edges="0"/>
+    </part>
+  </object>
+  <plate>
+    <metadata key="plater_id" value="1"/>
+    <metadata key="plater_name" value=""/>
+    <metadata key="locked" value="false"/>
+    <metadata key="filament_map_mode" value="Auto For Flush"/>
+    <metadata key="filament_maps" value="1"/>
+    <metadata key="filament_volume_maps" value="0"/>
+    <model_instance>
+      <metadata key="object_id" value="3"/>
+      <metadata key="instance_id" value="0"/>
+      <metadata key="identify_id" value="901"/>
+    </model_instance>
+  </plate>
+  <assemble>
+    <assemble_item object_id="3" instance_id="0" transform="1 0 0 0 1 0 0 0 1 0 0 0" offset="0 0 0" />
+  </assemble>
+</config>
+"""
+
+
 def bambu_project_settings_json() -> str:
     template = Path("reference-bambu-filament2.3mf")
     if not template.exists():
@@ -665,6 +769,32 @@ def bambu_project_settings_json() -> str:
             "filament_colour_type": ["1", "1"],
             "has_filament_switcher": "0",
             "single_extruder_multi_material": "1",
+            "printer_model": "Bambu Lab A1 mini",
+        }
+    return json.dumps(settings, indent=4)
+
+
+def bambu_single_colour_project_settings_json() -> str:
+    template = Path("reference-bambu-filament2.3mf")
+    settings = {}
+    if template.exists():
+        with zipfile.ZipFile(template) as package:
+            settings = json.loads(package.read("Metadata/project_settings.config"))
+    if settings:
+        settings["filament_colour"] = ["#163D3A"]
+        settings["filament_map"] = ["1"]
+        settings["has_filament_switcher"] = "0"
+        settings["single_extruder_multi_material"] = "0"
+    else:
+        settings = {
+            "filament_colour": ["#163D3A"],
+            "filament_type": ["PLA"],
+            "filament_settings_id": ["Bambu PLA Basic 200C"],
+            "filament_ids": ["GFA00"],
+            "filament_map": ["1"],
+            "filament_colour_type": ["1"],
+            "has_filament_switcher": "0",
+            "single_extruder_multi_material": "0",
             "printer_model": "Bambu Lab A1 mini",
         }
     return json.dumps(settings, indent=4)
@@ -801,13 +931,14 @@ def dedupe(points: Sequence[Point]) -> List[Point]:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate a 4-piece surprise multicolour jigsaw.")
+    parser = argparse.ArgumentParser(description="Generate a 4-piece surprise jigsaw.")
     parser.add_argument("--out", default="generated/surprises/relic-island-4pc-v2")
     parser.add_argument("--width", type=float, default=50.0)
     parser.add_argument("--height", type=float, default=50.0)
     parser.add_argument("--name", default="Relic Island")
     parser.add_argument("--design", choices=["relic-island", "orbit-shrine"], default="relic-island")
     parser.add_argument("--format", choices=["generic", "bambu-project"], default="bambu-project")
+    parser.add_argument("--colour-mode", choices=["single", "multi"], default="single")
     parser.add_argument("--irregular", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--rows", type=int, default=2)
     parser.add_argument("--cols", type=int, default=2)
@@ -877,7 +1008,16 @@ def main() -> None:
                     )
 
         filename = f"piece-{index:02d}.3mf"
-        if args.format == "bambu-project":
+        if args.colour_mode == "single":
+            write_bambu_single_colour_project_3mf(
+                out / filename,
+                base_triangles,
+                art_triangles,
+                args.width,
+                args.height,
+                args.base_thickness + args.art_height,
+            )
+        elif args.format == "bambu-project":
             write_bambu_project_3mf(
                 out / filename,
                 base_triangles,
@@ -908,7 +1048,7 @@ def main() -> None:
 
     manifest = {
         "name": args.name,
-        "mode": "surprise-multicolour-jigsaw",
+        "mode": f"surprise-{args.colour_mode}-colour-jigsaw",
         "format": args.format,
         "createdAt": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
         "pieceCount": len(pieces),
@@ -920,8 +1060,10 @@ def main() -> None:
             "baseThickness": args.base_thickness,
             "totalHeight": args.base_thickness + args.art_height,
         },
-        "bambuStudioImport": "Open each 3MF and choose Yes when Bambu asks to load as a single object with multiple parts.",
-        "filamentAssignment": {
+        "bambuStudioImport": "Open each 3MF in Bambu Studio. Single-colour files should load as one printable object.",
+        "filamentAssignment": {"enigma_print_piece": 1}
+        if args.colour_mode == "single"
+        else {
             "base_colour_1": 1,
             "reveal_colour_2": 2,
         },

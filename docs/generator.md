@@ -118,15 +118,28 @@ Finally, add the weekly ritual:
 
 ## Known-Good Bambu 3MF Recipe
 
-Use `scripts/generate_surprise_jigsaw_3mf.py` for the current irregular multicolour puzzle pieces.
+Use `scripts/generate_surprise_jigsaw_3mf.py` for the current irregular puzzle pieces.
 
-Known-good command:
+Current non-AMS command:
+
+```bash
+.venv/bin/python scripts/generate_surprise_jigsaw_3mf.py \
+  --out generated/surprises/orbit-shrine-4pc-single \
+  --name "Orbit Shrine" \
+  --design orbit-shrine \
+  --colour-mode single
+```
+
+This keeps the raised reveal as separate geometry in the project structure, but assigns every part to filament `1`.
+
+Known-good AMS/multicolour command:
 
 ```bash
 .venv/bin/python scripts/generate_surprise_jigsaw_3mf.py \
   --out generated/surprises/orbit-shrine-4pc-v6-reference-style \
   --name "Orbit Shrine" \
-  --design orbit-shrine
+  --design orbit-shrine \
+  --colour-mode multi
 ```
 
 The working 3MF format is based on `reference-bambu-filament2.3mf`, which was manually saved from Bambu Studio after assigning:

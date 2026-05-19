@@ -1,86 +1,86 @@
 {
   "projects": [
     {
-      "id": "orbit-shrine-4pc-v6",
+      "id": "orbit-shrine-4pc-single",
       "name": "Orbit Shrine",
-      "slug": "orbit-shrine-4pc-v6-reference-style",
+      "slug": "orbit-shrine-4pc-single",
       "status": "current",
-      "summary": "Irregular four-piece multicolour puzzle with Bambu Studio-ready filament assignments.",
+      "summary": "Irregular four-piece single-colour relief puzzle for non-AMS printing.",
       "targetPrinter": "Bambu Lab A1 mini",
       "createdAt": "2026-05-19T12:48:16Z",
-      "updatedAt": "2026-05-19T12:48:16Z",
+      "updatedAt": "2026-05-19T14:24:43Z",
       "generator": {
-        "mode": "surprise-multicolour-jigsaw",
+        "mode": "surprise-single-colour-jigsaw",
         "format": "bambu-project",
         "pieceCount": 4,
         "pieceAreaMm2": "346-401",
         "filamentAssignment": {
           "base_colour_1": 1,
-          "reveal_colour_2": 2
+          "reveal_relief_same_filament": 1
         }
       },
       "assets": {
-        "preview": "generated/surprises/orbit-shrine-4pc-v6-reference-style/preview.png",
-        "manifest": "generated/surprises/orbit-shrine-4pc-v6-reference-style/manifest.json"
+        "preview": "generated/surprises/orbit-shrine-4pc-single/preview.png",
+        "manifest": "generated/surprises/orbit-shrine-4pc-single/manifest.json"
       },
       "files": [
         {
           "name": "manifest.json",
           "type": "JSON",
           "description": "Project metadata",
-          "path": "generated/surprises/orbit-shrine-4pc-v6-reference-style/manifest.json"
+          "path": "generated/surprises/orbit-shrine-4pc-single/manifest.json"
         },
         {
           "name": "preview.png",
           "type": "PNG",
           "description": "Full-colour design with puzzle outlines",
-          "path": "generated/surprises/orbit-shrine-4pc-v6-reference-style/preview.png"
+          "path": "generated/surprises/orbit-shrine-4pc-single/preview.png"
         }
       ],
       "pieces": [
         {
-          "id": "orbit-shrine-4pc-v6-1",
+          "id": "orbit-shrine-4pc-single-1",
           "day": 1,
           "name": "Piece 1",
           "filename": "piece-01.3mf",
-          "path": "generated/surprises/orbit-shrine-4pc-v6-reference-style/piece-01.3mf",
+          "path": "generated/surprises/orbit-shrine-4pc-single/piece-01.3mf",
           "scheduledFor": "2026-05-19",
           "status": "generated",
           "printedAt": null,
-          "note": "Bambu-ready 3MF: base filament 1, reveal filament 2."
+          "note": "Bambu-ready 3MF: all geometry assigned to filament 1."
         },
         {
-          "id": "orbit-shrine-4pc-v6-2",
+          "id": "orbit-shrine-4pc-single-2",
           "day": 2,
           "name": "Piece 2",
           "filename": "piece-02.3mf",
-          "path": "generated/surprises/orbit-shrine-4pc-v6-reference-style/piece-02.3mf",
+          "path": "generated/surprises/orbit-shrine-4pc-single/piece-02.3mf",
           "scheduledFor": "2026-05-20",
           "status": "generated",
           "printedAt": null,
-          "note": "Bambu-ready 3MF: base filament 1, reveal filament 2."
+          "note": "Bambu-ready 3MF: all geometry assigned to filament 1."
         },
         {
-          "id": "orbit-shrine-4pc-v6-3",
+          "id": "orbit-shrine-4pc-single-3",
           "day": 3,
           "name": "Piece 3",
           "filename": "piece-03.3mf",
-          "path": "generated/surprises/orbit-shrine-4pc-v6-reference-style/piece-03.3mf",
+          "path": "generated/surprises/orbit-shrine-4pc-single/piece-03.3mf",
           "scheduledFor": "2026-05-21",
           "status": "generated",
           "printedAt": null,
-          "note": "Bambu-ready 3MF: base filament 1, reveal filament 2."
+          "note": "Bambu-ready 3MF: all geometry assigned to filament 1."
         },
         {
-          "id": "orbit-shrine-4pc-v6-4",
+          "id": "orbit-shrine-4pc-single-4",
           "day": 4,
           "name": "Piece 4",
           "filename": "piece-04.3mf",
-          "path": "generated/surprises/orbit-shrine-4pc-v6-reference-style/piece-04.3mf",
+          "path": "generated/surprises/orbit-shrine-4pc-single/piece-04.3mf",
           "scheduledFor": "2026-05-22",
           "status": "generated",
           "printedAt": null,
-          "note": "Bambu-ready 3MF: base filament 1, reveal filament 2."
+          "note": "Bambu-ready 3MF: all geometry assigned to filament 1."
         }
       ]
     },

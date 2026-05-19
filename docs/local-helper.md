@@ -18,18 +18,26 @@ Current endpoints:
 
 - `GET /health` confirms the helper is running.
 - `POST /open-piece` opens a workspace-relative 3MF in Bambu Studio.
+- `POST /slice-piece` runs Bambu Studio CLI slicing and writes G-code under `generated/sliced/<project>/<piece>/`.
 
 Example request:
 
 ```bash
 curl -X POST http://127.0.0.1:4777/open-piece \
   -H 'Content-Type: application/json' \
-  -d '{"path":"generated/surprises/orbit-shrine-4pc-v6-reference-style/piece-01.3mf"}'
+  -d '{"path":"generated/surprises/orbit-shrine-4pc-single/piece-01.3mf"}'
+```
+
+Slice request:
+
+```bash
+curl -X POST http://127.0.0.1:4777/slice-piece \
+  -H 'Content-Type: application/json' \
+  -d '{"path":"generated/surprises/orbit-shrine-4pc-single/piece-01.3mf"}'
 ```
 
 Planned endpoints:
 
-- `POST /slice-piece` to run Bambu Studio CLI slicing.
 - `POST /print-piece` to send a sliced job to the printer once the local Bambu workflow is proven.
 - A small launch agent so the helper starts automatically after login.
 
