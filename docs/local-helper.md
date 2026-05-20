@@ -63,7 +63,7 @@ The current print path is experimental and intentionally local-only:
 3MF -> Bambu Studio CLI slice -> plate_1.gcode -> .gcode.3mf package -> printer FTPS upload -> MQTT project_file command
 ```
 
-By default the helper uploads to `cache/<piece>.gcode.3mf` and sends a `project_file` MQTT command pointing at `Metadata/plate_1.gcode` inside that package. Some firmware versions may require LAN-only or developer mode for MQTT/FTPS control.
+By default the helper uploads to `cache/<piece>.gcode.3mf` and sends a `project_file` MQTT command with `url=file:///sdcard/cache/<piece>.gcode.3mf` and `param=Metadata/plate_1.gcode`. Some firmware versions may require LAN-only or developer mode for MQTT/FTPS control.
 
 Security notes:
 
