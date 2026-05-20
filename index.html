@@ -2,49 +2,253 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <meta http-equiv="refresh" content="0; url=enigma-gemini/index.html">
-    <title>Redirecting to Enigma Print Dashboard...</title>
-    <script>
-      window.location.href = "enigma-gemini/index.html";
-    </script>
-    <style>
-      body {
-        background-color: #0E1210;
-        color: #E1F5EE;
-        font-family: 'Outfit', sans-serif;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        height: 100vh;
-        margin: 0;
-      }
-      .loader {
-        text-align: center;
-      }
-      .spinner {
-        border: 4px solid rgba(29, 158, 117, 0.1);
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        border-left-color: #1D9E75;
-        animation: spin 1s linear infinite;
-        margin: 0 auto 16px auto;
-      }
-      @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-      }
-      a {
-        color: #5DCAA5;
-        text-decoration: none;
-      }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Enigma Print — Mobile Dashboard</title>
+    <meta name="theme-color" content="#196a60">
+    <meta name="description" content="Premium mobile-first puzzle printing manager.">
+    <!-- Google Fonts for premium typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
   </head>
   <body>
-    <div class="loader">
-      <div class="spinner"></div>
-      <p>Redirecting to premium dashboard...</p>
-      <p><small>If you are not redirected automatically, <a href="enigma-gemini/index.html">click here</a>.</small></p>
+    <div class="mobile-shell">
+      <!-- Top header bar -->
+      <header class="app-header">
+        <div class="brand">
+          <div class="brand-badge">E</div>
+          <div>
+            <h1>Enigma Print</h1>
+            <p class="subtitle" id="projectSub">Bambu Lab A1 mini Weekly</p>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button class="settings-trigger" id="settingsButton" aria-label="Settings" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Main viewport area -->
+      <main class="viewport-content" id="mainViewport">
+        
+        <!-- FOCUS CARD: VIEW PIECE (Screen 1 & Screen 2 & Screen 3) -->
+        <section class="focus-section" id="focusSection">
+          <div class="focus-card">
+            
+            <!-- oblique 3D viewer container -->
+            <div class="viewer-wrapper">
+              <div class="viewer-indicator">
+                <span class="axis-tag">X / Y / Z</span>
+                <span class="rotate-hint">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+                  </svg>
+                  Rotate Oblique
+                </span>
+              </div>
+              
+              <!-- 3D Canvas / Dynamic SVG area -->
+              <div class="viewer-3d" id="obliqueViewer">
+                <!-- SVG oblique drawing generated via JS -->
+              </div>
+              
+              <div class="viewer-badge" id="completionBadge">Day 3</div>
+            </div>
+
+            <!-- Carousel Navigation Controller -->
+            <div class="carousel-nav">
+              <button class="nav-arrow" id="prevDayButton" aria-label="Previous day" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+              </button>
+              
+              <div class="piece-title-block">
+                <p class="piece-eyebrow" id="pieceDayLabel">DAY 3 OF 7</p>
+                <h2 class="piece-title" id="pieceNameLabel">Loading Piece...</h2>
+              </div>
+              
+              <button class="nav-arrow" id="nextDayButton" aria-label="Next day" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Progress Strip Timeline (7 dots) -->
+            <div class="progress-strip" id="progressStrip">
+              <!-- Rendered via JS: 7 dots representing active, complete, pending -->
+            </div>
+
+            <!-- Primary Action Panel -->
+            <div class="action-panel" id="actionPanel">
+              <!-- Slices dynamically loaded based on screen states -->
+              <button class="coral-btn" id="printCta" type="button">
+                <span class="btn-icon">⚡</span>
+                Send to A1 mini
+              </button>
+              
+              <div class="printed-chip complete-state" id="printedChip" hidden>
+                <span class="checkmark-circle">✓</span>
+                Printed · <span id="printedTimeLabel">Mon 19 May</span>
+              </div>
+            </div>
+
+            <!-- Stats Panel -->
+            <div class="stats-panel" id="statsPanel">
+              <div class="stat-box">
+                <span class="stat-label">PRINT TIME</span>
+                <strong class="stat-value" id="statTime">--</strong>
+              </div>
+              <div class="stat-box">
+                <span class="stat-label">FILAMENT</span>
+                <strong class="stat-value" id="statFilament">--</strong>
+              </div>
+              <div class="stat-box">
+                <span class="stat-label">STATUS</span>
+                <strong class="stat-value" id="statStatus">--</strong>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- SCREEN 4: ASSEMBLY & REVEAL GUIDE -->
+        <section class="assembly-section" id="assemblySection" hidden>
+          <div class="focus-card assembly-card">
+            <div class="assembly-header">
+              <p class="piece-eyebrow">ASSEMBLY GUIDE</p>
+              <h2 class="piece-title">Piece It Together</h2>
+              <p class="assembly-subtitle">Assemble the 7 physical prints in sequential order, then tap below to reveal the design.</p>
+            </div>
+
+            <!-- SVG Interlocking Jigsaw Board -->
+            <div class="jigsaw-container">
+              <svg id="jigsawBoard" viewBox="0 0 140 84" width="100%" height="100%">
+                <defs>
+                  <clipPath id="revealClip">
+                    <rect x="0" y="0" width="140" height="84" rx="4" />
+                  </clipPath>
+                </defs>
+                <g id="jigsawPiecesGroup" clip-path="url(#revealClip)">
+                  <!-- Interlocking puzzle path nodes generated dynamically in JS -->
+                </g>
+              </svg>
+            </div>
+
+            <!-- Dashed Reveal Lock / Affirmation Chip -->
+            <div class="reveal-wrapper">
+              <button class="reveal-lock-box" id="revealLockBox" type="button">
+                <div class="lock-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                  </svg>
+                </div>
+                <strong>Hidden until you build it</strong>
+                <p>Physically assemble the puzzle, then tap here to unlock the final reveal.</p>
+              </button>
+
+              <div class="reveal-chip" id="revealChip" hidden>
+                <div class="reveal-chip-meta">
+                  <span class="badge">Week 21</span>
+                  <strong>Geometry Fit Motif</strong>
+                </div>
+                <button class="hide-reveal-trigger" id="hideRevealBtn" type="button">Tap to hide</button>
+              </div>
+            </div>
+
+            <div class="assembly-actions">
+              <button class="secondary-btn" id="backToTodayBtn" type="button">← Back to Today's print</button>
+            </div>
+          </div>
+        </section>
+
+      </main>
     </div>
+
+    <!-- SETTINGS MODAL -->
+    <dialog id="settingsDialog" class="settings-dialog">
+      <form method="dialog" class="dialog-form" id="settingsForm">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow">PRINTER CONFIGURATION</p>
+            <h2>Bambu Lab Cloud Link</h2>
+          </div>
+          <button class="close-icon-btn" value="cancel" type="submit" aria-label="Close settings">×</button>
+        </div>
+
+        <div class="dialog-body">
+          <p class="dialog-explain">
+            Link your printer directly to Bambu Lab Cloud. Pre-sliced models are streamed securely from GitHub to your A1 mini via the cloud bridge.
+          </p>
+          
+          <label class="form-label">
+            Cloud Bridge API URL
+            <input type="url" id="helperUrlInput" required placeholder="http://192.168.1.140:4777">
+          </label>
+
+          <label class="form-label">
+            Bambu Account Email
+            <input type="email" id="bambuEmailInput" required placeholder="name@example.com" autocomplete="username">
+          </label>
+
+          <label class="form-label">
+            Bambu Account Password
+            <input type="password" id="bambuPasswordInput" required placeholder="••••••••••••" autocomplete="current-password">
+          </label>
+
+          <label class="form-label">
+            Printer Serial Number (SN)
+            <input type="text" id="bambuSerialInput" required placeholder="01S00A123456789">
+          </label>
+
+          <div class="connection-status-panel">
+            <span class="status-dot ping-pending" id="pingDot"></span>
+            <span class="status-msg" id="pingStatusMsg">Checking connection...</span>
+          </div>
+
+          <div class="mixed-content-notice">
+            <strong>🔒 Encryption & Privacy Notice:</strong>
+            Credentials are saved purely in your local browser storage (`localStorage`) and sent securely over encrypted HTTPS requests only. Your password is never stored or tracked.
+          </div>
+        </div>
+
+        <menu class="dialog-actions">
+          <button class="secondary-btn" value="cancel" type="submit">Cancel</button>
+          <button class="primary-btn" id="saveSettingsBtn" value="default" type="submit">Save & Link</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <!-- PRINT PROGRESS STEP MODAL -->
+    <dialog id="printProgressDialog" class="progress-dialog" aria-labelledby="progressTitle">
+      <div class="progress-card">
+        <div class="progress-head">
+          <div>
+            <p class="eyebrow" id="progressEyebrow">PRINT JOB STATUS</p>
+            <h2 id="progressTitle">Preparing Slicer</h2>
+          </div>
+          <strong id="progressPercent">0%</strong>
+        </div>
+        <div class="progress-bar-wrapper">
+          <div class="progress-bar-fill" id="progressFill"></div>
+        </div>
+        <ol class="progress-steps-list" id="progressSteps">
+          <!-- Populated in JS: lists out Slicing, Packaging, FTP Upload, MQTT Send -->
+        </ol>
+        <p class="progress-message-detail" id="progressMessage">Waiting for LAN slice...</p>
+        <div class="progress-actions">
+          <button class="secondary-btn" id="progressCloseButton" type="button" hidden>Close Window</button>
+        </div>
+      </div>
+    </dialog>
+
+    <script src="app.js" type="module"></script>
   </body>
 </html>
