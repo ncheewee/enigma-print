@@ -249,7 +249,7 @@ def publish_mqtt(config: dict, payload: dict) -> None:
     password = config["accessCode"]
     serial = config["serialNumber"]
     topic = config.get("mqttTopic", f"device/{serial}/request").format(serial=serial)
-    client_id = config.get("clientId", "enigma-print-helper")
+    client_id = config.get("clientId", serial)
     context = ssl._create_unverified_context()
 
     try:
