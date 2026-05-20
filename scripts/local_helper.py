@@ -305,7 +305,9 @@ def upload_gcode_ftps(gcode_path: Path, remote_name: str, config: dict, host: st
             with gcode_path.open("rb") as handle:
                 try:
                     ftp.storbinary(f"STOR {remote_name}", handle, blocksize=64 * 1024)
-                except socket.timeout:
+                except (socket.timeout, TimeoutError, OSError) as error:
+                    if not is_timeout_error(error):
+                        raise
                     if not remote_file_exists_with_config(remote_name, config, host):
                         raise
     except Exception as error:
@@ -339,6 +341,10 @@ def remote_file_exists_with_config(remote_name: str, config: dict, host: str) ->
         ftp.set_pasv(bool(config.get("ftpPassive", True)))
         ftp.prot_p()
         return remote_file_exists(ftp, remote_name)
+
+
+def is_timeout_error(error: BaseException) -> bool:
+    return isinstance(error, (socket.timeout, TimeoutError)) or getattr(error, "errno", None) in {60, 110}
 
 
 def build_print_command(remote_name: str, config: dict) -> dict:
