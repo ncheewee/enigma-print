@@ -217,6 +217,8 @@ def send_gcode_to_printer(piece_path: Path, sliced: dict, config: dict, stages: 
     if stages is not None:
         stages.append(f"Uploaded {remote_name}")
     command = build_print_command(remote_name, config, gcode_3mf)
+    if stages is not None:
+        stages.append("AMS disabled for single-colour print")
     publish_mqtt(config, command, host)
     if stages is not None:
         stages.append("Sent project_file print command")

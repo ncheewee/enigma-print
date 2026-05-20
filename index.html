@@ -36,7 +36,10 @@
       <main class="workspace">
         <header class="topbar">
           <div>
-            <p class="eyebrow" id="storageMode">GitHub Pages dashboard</p>
+            <div class="mode-line">
+              <p class="eyebrow" id="storageMode">GitHub Pages dashboard</p>
+              <span class="version-badge" id="versionBadge">v0.4.0</span>
+            </div>
             <h2 id="projectTitle">Loading...</h2>
           </div>
           <div class="topbar-actions">
@@ -140,6 +143,26 @@
           <button class="primary-button" id="createProjectSubmit" value="default" type="submit">Create project</button>
         </menu>
       </form>
+    </dialog>
+
+    <dialog id="progressDialog" class="progress-dialog" aria-labelledby="progressTitle">
+      <div class="progress-card">
+        <div class="progress-head">
+          <div>
+            <p class="eyebrow" id="progressEyebrow">Print job</p>
+            <h2 id="progressTitle">Preparing print</h2>
+          </div>
+          <strong id="progressPercent">0%</strong>
+        </div>
+        <div class="progress-bar" aria-hidden="true">
+          <span id="progressFill"></span>
+        </div>
+        <ol class="progress-steps" id="progressSteps"></ol>
+        <p class="progress-message" id="progressMessage">Waiting for local helper.</p>
+        <div class="progress-actions">
+          <button class="secondary-button" id="progressCloseButton" type="button">Close</button>
+        </div>
+      </div>
     </dialog>
 
     <script src="app.js" type="module"></script>

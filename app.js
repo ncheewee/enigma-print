@@ -1,7 +1,17 @@
 const STORAGE_KEY = "enigmaprint.projects.v2";
 const HELPER_URL = "http://127.0.0.1:4777";
+const APP_VERSION = "v0.4.0";
+const PRINT_PHASES = [
+  { key: "config", label: "Load printer settings", percent: 8 },
+  { key: "slice", label: "Slice 3MF to G-code", percent: 28 },
+  { key: "package", label: "Package printer project", percent: 50 },
+  { key: "upload", label: "Upload to A1 mini", percent: 76 },
+  { key: "send", label: "Send AMS-off print command", percent: 92 },
+  { key: "done", label: "Printer accepted job", percent: 100 }
+];
 
 const els = {
+  versionBadge: document.querySelector("#versionBadge"),
   projectList: document.querySelector("#projectList"),
   projectTitle: document.querySelector("#projectTitle"),
   projectStatus: document.querySelector("#projectStatus"),
@@ -23,7 +33,14 @@ const els = {
   nameInput: document.querySelector("#nameInput"),
   hintInput: document.querySelector("#hintInput"),
   piecesInput: document.querySelector("#piecesInput"),
-  startInput: document.querySelector("#startInput")
+  startInput: document.querySelector("#startInput"),
+  progressDialog: document.querySelector("#progressDialog"),
+  progressTitle: document.querySelector("#progressTitle"),
+  progressPercent: document.querySelector("#progressPercent"),
+  progressFill: document.querySelector("#progressFill"),
+  progressSteps: document.querySelector("#progressSteps"),
+  progressMessage: document.querySelector("#progressMessage"),
+  progressCloseButton: document.querySelector("#progressCloseButton")
 };
 
 let state = {
@@ -32,6 +49,7 @@ let state = {
 };
 
 async function bootstrap() {
+  els.versionBadge.textContent = APP_VERSION;
   state.projects = loadProjects();
   await loadPublishedProjects();
   state.selectedProjectId = state.projects[0]?.id ?? null;
@@ -93,23 +111,27 @@ function attachEvents() {
 
   els.pieceGrid.addEventListener("click", handlePieceActionClick);
   els.todayPiece.addEventListener("click", handlePieceActionClick);
+  els.progressCloseButton.addEventListener("click", () => els.progressDialog.close());
+  els.progressDialog.addEventListener("cancel", (event) => {
+    if (els.progressCloseButton.hidden) event.preventDefault();
+  });
 }
 
 async function handlePieceActionClick(event) {
-    const action = event.target.closest("[data-piece-action]");
-    if (!action || action.disabled) return;
-    const project = getSelectedProject();
-    const piece = project?.pieces.find((item) => item.id === action.dataset.pieceId);
-    if (!project || !piece) return;
-    if (action.dataset.pieceAction === "open") {
-      await openPieceWithHelper(project, piece);
-    }
-    if (action.dataset.pieceAction === "slice") {
-      await withBusyAction(action, "Slicing...", () => slicePieceWithHelper(project, piece));
-    }
-    if (action.dataset.pieceAction === "print") {
-      await withBusyAction(action, "Preparing...", () => printPieceWithHelper(project, piece, action));
-    }
+  const action = event.target.closest("[data-piece-action]");
+  if (!action || action.disabled) return;
+  const project = getSelectedProject();
+  const piece = project?.pieces.find((item) => item.id === action.dataset.pieceId);
+  if (!project || !piece) return;
+  if (action.dataset.pieceAction === "open") {
+    await openPieceWithHelper(project, piece);
+  }
+  if (action.dataset.pieceAction === "slice") {
+    await withBusyAction(action, "Slicing...", () => slicePieceWithHelper(project, piece));
+  }
+  if (action.dataset.pieceAction === "print") {
+    await withBusyAction(action, "Preparing...", () => printPieceWithHelper(project, piece, action));
+  }
 }
 
 async function importManifest(event) {
@@ -264,7 +286,7 @@ function renderProject(project) {
         ${piece.path ? `<a class="piece-link" href="${escapeHtml(piece.path)}">Download</a>` : ""}
         ${piece.path ? `<button class="piece-link" type="button" data-piece-action="open" data-piece-id="${escapeHtml(piece.id)}">Open</button>` : ""}
         ${piece.path ? `<button class="piece-link" type="button" data-piece-action="slice" data-piece-id="${escapeHtml(piece.id)}">Slice G-code</button>` : ""}
-        ${piece.path ? `<button class="piece-link" type="button" data-piece-action="print" data-piece-id="${escapeHtml(piece.id)}">Print G-code</button>` : ""}
+        ${piece.path ? `<button class="piece-link" type="button" data-piece-action="print" data-piece-id="${escapeHtml(piece.id)}">Print (AMS off)</button>` : ""}
       </div>
     </article>
   `).join("");
@@ -305,7 +327,7 @@ function renderTodayPiece(piece) {
           <a class="piece-link" href="${escapeHtml(piece.path)}">Download 3MF</a>
           <button class="piece-link" type="button" data-piece-action="open" data-piece-id="${escapeHtml(piece.id)}">Open</button>
           <button class="piece-link" type="button" data-piece-action="slice" data-piece-id="${escapeHtml(piece.id)}">Slice G-code</button>
-          <button class="piece-link" type="button" data-piece-action="print" data-piece-id="${escapeHtml(piece.id)}">Print G-code</button>
+          <button class="piece-link" type="button" data-piece-action="print" data-piece-id="${escapeHtml(piece.id)}">Print (AMS off)</button>
         </div>
       ` : ""}
     </div>
@@ -427,9 +449,10 @@ async function slicePieceWithHelper(project, piece) {
 }
 
 async function printPieceWithHelper(project, piece, action) {
-  const confirmed = window.confirm(`Slice and send ${piece.filename} to the configured printer?`);
+  const confirmed = window.confirm(`Slice and send ${piece.filename} as a single-colour print with AMS off?`);
   if (!confirmed) return;
 
+  const progress = startPrintProgress(piece);
   try {
     updateBusyAction(action, "Slicing...");
     const response = await fetch(`${HELPER_URL}/print-piece`, {
@@ -444,15 +467,73 @@ async function printPieceWithHelper(project, piece, action) {
     updateBusyAction(action, "Checking...");
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.message || "Print request failed.");
-    window.alert(
-      `Print command sent for ${piece.filename}\n\n` +
-      `Uploaded: ${result.remoteFilename}\n` +
-      `Printer: ${result.printerHost}\n\n` +
-      `${(result.stages || []).join("\n")}`
-    );
+    finishPrintProgress(progress, {
+      ok: true,
+      message: `Sent ${piece.filename} to ${result.printerHost}. AMS is off; use the loaded single filament.`,
+      stages: result.stages || []
+    });
   } catch (error) {
-    window.alert(`Could not send print job: ${error.message}`);
+    finishPrintProgress(progress, {
+      ok: false,
+      message: `Could not send print job: ${error.message}`,
+      stages: []
+    });
   }
+}
+
+function startPrintProgress(piece) {
+  const progress = {
+    index: 0,
+    timer: null
+  };
+  els.progressTitle.textContent = piece.filename;
+  els.progressMessage.textContent = "Starting local slice. Bambu Studio may take about 30 seconds here.";
+  els.progressCloseButton.hidden = true;
+  renderProgress(progress.index, "running");
+  if (!els.progressDialog.open) els.progressDialog.showModal();
+
+  progress.timer = window.setInterval(() => {
+    if (progress.index < PRINT_PHASES.length - 2) {
+      progress.index += 1;
+      renderProgress(progress.index, "running");
+      els.progressMessage.textContent = progressMessageForPhase(progress.index);
+    }
+  }, 7000);
+  return progress;
+}
+
+function finishPrintProgress(progress, result) {
+  window.clearInterval(progress.timer);
+  const finalIndex = result.ok ? PRINT_PHASES.length - 1 : Math.min(progress.index, PRINT_PHASES.length - 2);
+  renderProgress(finalIndex, result.ok ? "done" : "error");
+  els.progressMessage.textContent = result.ok
+    ? result.message
+    : `${result.message}. Check the helper terminal and printer screen before trying again.`;
+  if (result.stages.length) {
+    els.progressMessage.textContent += `\n\n${result.stages.join("\n")}`;
+  }
+  els.progressCloseButton.hidden = false;
+}
+
+function renderProgress(activeIndex, status) {
+  const phase = PRINT_PHASES[activeIndex];
+  const percent = phase.percent;
+  els.progressPercent.textContent = `${percent}%`;
+  els.progressFill.style.width = `${percent}%`;
+  els.progressSteps.innerHTML = PRINT_PHASES.map((item, index) => {
+    const stateClass = index < activeIndex || status === "done" ? "done" : index === activeIndex ? status : "pending";
+    return `<li class="${stateClass}"><span></span>${escapeHtml(item.label)}</li>`;
+  }).join("");
+}
+
+function progressMessageForPhase(index) {
+  return [
+    "Reading printer config and checking LAN reachability.",
+    "Slicing the 3MF headlessly. The Bambu Studio window will not visibly change.",
+    "Wrapping the sliced G-code into a Bambu project package.",
+    "Uploading to the printer over FTPS. This can be the slowest step.",
+    "Sending the final project_file command with AMS disabled."
+  ][index] || "Waiting for printer response.";
 }
 
 async function withBusyAction(button, label, task) {

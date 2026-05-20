@@ -209,6 +209,26 @@ button {
   gap: 16px;
 }
 
+.mode-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.version-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid #c9d8d2;
+  border-radius: 999px;
+  color: var(--accent-strong);
+  background: #edf7f4;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
 .topbar h2 {
   margin-top: 4px;
   font-size: clamp(1.6rem, 3vw, 2.6rem);
@@ -529,6 +549,122 @@ dialog::backdrop {
   display: grid;
   gap: 18px;
   padding: 22px;
+}
+
+.progress-dialog {
+  width: min(520px, calc(100vw - 32px));
+}
+
+.progress-card {
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+}
+
+.progress-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.progress-head h2 {
+  margin: 4px 0 0;
+  font-size: 1.25rem;
+}
+
+.progress-head strong {
+  color: var(--accent-strong);
+  font-size: 1.1rem;
+}
+
+.progress-bar {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e6ede8;
+}
+
+.progress-bar span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 400ms ease;
+}
+
+.progress-steps {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.progress-steps li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.progress-steps li span {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #cfd9d3;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.progress-steps li.running,
+.progress-steps li.done {
+  color: var(--ink);
+}
+
+.progress-steps li.running span {
+  border-color: var(--accent);
+  border-top-color: #cfd9d3;
+  animation: spin 0.8s linear infinite;
+}
+
+.progress-steps li.done span {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.progress-steps li.done span::after {
+  content: "";
+  width: 8px;
+  height: 4px;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  transform: rotate(-45deg) translate(1px, -1px);
+}
+
+.progress-steps li.error {
+  color: #8c2f1f;
+}
+
+.progress-steps li.error span {
+  border-color: #8c2f1f;
+}
+
+.progress-message {
+  min-height: 42px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  white-space: pre-line;
+}
+
+.progress-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .dialog-header,
