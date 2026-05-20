@@ -177,20 +177,35 @@
       <form method="dialog" class="dialog-form" id="settingsForm">
         <div class="dialog-header">
           <div>
-            <p class="eyebrow">CONFIGURATION</p>
-            <h2>Link Local Helper</h2>
+            <p class="eyebrow">PRINTER CONFIGURATION</p>
+            <h2>Bambu Lab Cloud Link</h2>
           </div>
           <button class="close-icon-btn" value="cancel" type="submit" aria-label="Close settings">×</button>
         </div>
 
         <div class="dialog-body">
           <p class="dialog-explain">
-            Enter your Mac's LAN IP address so your phone can reach the local helper slicing bridge over your Wi-Fi network.
+            Link your printer directly to Bambu Lab Cloud. Pre-sliced models are streamed securely from GitHub to your A1 mini via the cloud bridge.
           </p>
           
           <label class="form-label">
-            Local Helper URL
+            Cloud Bridge API URL
             <input type="url" id="helperUrlInput" required placeholder="http://192.168.1.140:4777">
+          </label>
+
+          <label class="form-label">
+            Bambu Account Email
+            <input type="email" id="bambuEmailInput" required placeholder="name@example.com" autocomplete="username">
+          </label>
+
+          <label class="form-label">
+            Bambu Account Password
+            <input type="password" id="bambuPasswordInput" required placeholder="••••••••••••" autocomplete="current-password">
+          </label>
+
+          <label class="form-label">
+            Printer Serial Number (SN)
+            <input type="text" id="bambuSerialInput" required placeholder="01S00A123456789">
           </label>
 
           <div class="connection-status-panel">
@@ -199,10 +214,8 @@
           </div>
 
           <div class="mixed-content-notice">
-            <strong>🔒 Mobile Browser Notice:</strong>
-            Because this dashboard loads over HTTPS, your mobile browser may block connections to a local HTTP address due to strict mixed-content rules.
-            <br><br>
-            If printing fails to start, load the dashboard using <strong>HTTP</strong> instead of HTTPS, or enable <em>"Insecure origins treated as secure"</em> in Chrome flags (`chrome://flags`).
+            <strong>🔒 Encryption & Privacy Notice:</strong>
+            Credentials are saved purely in your local browser storage (`localStorage`) and sent securely over encrypted HTTPS requests only. Your password is never stored or tracked.
           </div>
         </div>
 

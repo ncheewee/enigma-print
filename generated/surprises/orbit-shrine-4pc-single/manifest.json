@@ -23,7 +23,11 @@
       "baseTriangles": 452,
       "artTriangles": 196,
       "baseNonmanifoldEdges": 0,
-      "artNonmanifoldEdges": 0
+      "artNonmanifoldEdges": 0,
+      "gcode3mfPath": "generated/sliced/orbit-shrine-4pc-single/piece-01.gcode.3mf",
+      "printTimeMinutes": 8,
+      "filamentWeightG": 1.2,
+      "status": "sliced"
     },
     {
       "filename": "piece-02.3mf",
@@ -31,7 +35,11 @@
       "baseTriangles": 468,
       "artTriangles": 280,
       "baseNonmanifoldEdges": 0,
-      "artNonmanifoldEdges": 0
+      "artNonmanifoldEdges": 0,
+      "gcode3mfPath": "generated/sliced/orbit-shrine-4pc-single/piece-02.gcode.3mf",
+      "printTimeMinutes": 8,
+      "filamentWeightG": 1.1,
+      "status": "sliced"
     },
     {
       "filename": "piece-03.3mf",
@@ -39,7 +47,11 @@
       "baseTriangles": 444,
       "artTriangles": 200,
       "baseNonmanifoldEdges": 0,
-      "artNonmanifoldEdges": 0
+      "artNonmanifoldEdges": 0,
+      "gcode3mfPath": "generated/sliced/orbit-shrine-4pc-single/piece-03.gcode.3mf",
+      "printTimeMinutes": 8,
+      "filamentWeightG": 1.1,
+      "status": "sliced"
     },
     {
       "filename": "piece-04.3mf",
@@ -47,7 +59,11 @@
       "baseTriangles": 444,
       "artTriangles": 828,
       "baseNonmanifoldEdges": 0,
-      "artNonmanifoldEdges": 0
+      "artNonmanifoldEdges": 0,
+      "gcode3mfPath": "generated/sliced/orbit-shrine-4pc-single/piece-04.gcode.3mf",
+      "printTimeMinutes": 8,
+      "filamentWeightG": 1.1,
+      "status": "sliced"
     }
   ],
   "files": [

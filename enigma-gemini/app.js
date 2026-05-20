@@ -6,15 +6,18 @@
 
 const STORAGE_KEY = "enigmaprint.projects.v2";
 const HELPER_URL_KEY = "enigmaprint.helperUrl";
+const BAMBU_EMAIL_KEY = "enigmaprint.bambuEmail";
+const BAMBU_PASSWORD_KEY = "enigmaprint.bambuPassword";
+const BAMBU_SERIAL_KEY = "enigmaprint.bambuSerial";
 
-// Print phases for the progress modal
+// Print phases for the progress modal - Alternative A (Cloud-to-Cloud)
 const PRINT_PHASES = [
-  { key: "config", label: "Load printer settings", percent: 8 },
-  { key: "slice", label: "Slice 3MF to G-code", percent: 28 },
-  { key: "package", label: "Package printer project", percent: 50 },
-  { key: "upload", label: "Upload to A1 mini", percent: 76 },
-  { key: "send", label: "Send AMS-off print command", percent: 92 },
-  { key: "done", label: "Printer accepted job", percent: 100 }
+  { key: "download", label: "Download G-code from GitHub", percent: 15 },
+  { key: "auth", label: "Authenticate with Bambu Cloud", percent: 35 },
+  { key: "slot", label: "Request AWS S3 upload slot", percent: 55 },
+  { key: "upload", label: "Stream G-code to S3 Storage", percent: 75 },
+  { key: "send", label: "Publish Cloud MQTT print job", percent: 90 },
+  { key: "done", label: "Printer received print job!", percent: 100 }
 ];
 
 let state = {
@@ -22,6 +25,9 @@ let state = {
   activeProject: null,
   selectedDay: 1, // 1-indexed
   helperUrl: "http://127.0.0.1:4777",
+  bambuEmail: "",
+  bambuPassword: "",
+  bambuSerial: "",
   revealed: false
 };
 
@@ -39,6 +45,9 @@ const els = {
   settingsDialog: document.querySelector("#settingsDialog"),
   settingsForm: document.querySelector("#settingsForm"),
   helperUrlInput: document.querySelector("#helperUrlInput"),
+  bambuEmailInput: document.querySelector("#bambuEmailInput"),
+  bambuPasswordInput: document.querySelector("#bambuPasswordInput"),
+  bambuSerialInput: document.querySelector("#bambuSerialInput"),
   pingDot: document.querySelector("#pingDot"),
   pingStatusMsg: document.querySelector("#pingStatusMsg"),
   saveSettingsBtn: document.querySelector("#saveSettingsBtn"),
@@ -84,13 +93,17 @@ async function bootstrap() {
   const savedUrl = localStorage.getItem(HELPER_URL_KEY);
   if (savedUrl) {
     state.helperUrl = savedUrl;
-  } else {
-    // If we're on mobile, 127.0.0.1 won't work, so try to guess from window.location if possible
-    if (location.hostname && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
-      // Keep localhost fallback but notify user in dialog
-    }
   }
   els.helperUrlInput.value = state.helperUrl;
+
+  // Load Bambu Cloud Credentials
+  state.bambuEmail = localStorage.getItem(BAMBU_EMAIL_KEY) || "";
+  state.bambuPassword = localStorage.getItem(BAMBU_PASSWORD_KEY) || "";
+  state.bambuSerial = localStorage.getItem(BAMBU_SERIAL_KEY) || "";
+
+  if (els.bambuEmailInput) els.bambuEmailInput.value = state.bambuEmail;
+  if (els.bambuPasswordInput) els.bambuPasswordInput.value = state.bambuPassword;
+  if (els.bambuSerialInput) els.bambuSerialInput.value = state.bambuSerial;
 
   // Load projects from local storage first
   state.projects = loadProjectsFromStorage();
@@ -185,6 +198,7 @@ function normalizeProjectManifest(manifest) {
       name: piece.name || `Piece ${index + 1}`,
       filename: piece.filename || `piece-${String(index + 1).padStart(2, "0")}.3mf`,
       path: piece.path || piece.url || "",
+      gcode3mfPath: `generated/sliced/${slug}/piece-${String(index + 1).padStart(2, "0")}.gcode.3mf`,
       scheduledFor: piece.scheduledFor || new Date().toISOString().slice(0, 10),
       status: piece.status || "pending",
       printedAt: piece.printedAt || null,
@@ -709,33 +723,46 @@ function updateUI() {
   drawJigsaw();
 }
 
-// --- NETWORK PRINTER COMMANDS (LAN FTPS / MQTT BRIDGE) ---
+// --- CLOUD PRINTER COMMANDS (CLOUD BRIDGE) ---
 
 async function triggerPrintJob() {
   if (!state.activeProject) return;
   const project = state.activeProject;
   const piece = project.pieces[state.selectedDay - 1];
 
-  const confirmed = window.confirm(`Ready to headlessly slice ${piece.filename} and send to A1 mini over LAN?`);
+  // Verify Bambu Lab credentials
+  if (!state.bambuEmail || !state.bambuPassword || !state.bambuSerial) {
+    alert("Please open Settings (cog icon) and configure your Bambu Lab Cloud credentials first!");
+    els.settingsDialog.showModal();
+    checkHelperConnection();
+    return;
+  }
+
+  const confirmed = window.confirm(`Ready to print ${piece.filename} directly from the cloud via Bambu Lab Cloud?`);
   if (!confirmed) return;
 
   // Open the print progress modal
   startProgressModal(piece);
 
   try {
+    // Resolve absolute URL to the pre-sliced G-code package
+    const absoluteGcodeUrl = new URL("../" + piece.gcode3mfPath, window.location.href).href;
+    console.log("[EnigmaPrint] Target pre-sliced G-code URL:", absoluteGcodeUrl);
+
     const response = await fetch(`${state.helperUrl}/print-piece`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        projectId: project.id,
-        pieceId: piece.id,
-        path: piece.path
+        email: state.bambuEmail,
+        password: state.bambuPassword,
+        serialNumber: state.bambuSerial,
+        gcode3mfUrl: absoluteGcodeUrl
       })
     });
 
     const result = await response.json();
     if (!response.ok || !result.ok) {
-      throw new Error(result.message || "Print bridge command failed.");
+      throw new Error(result.message || "Cloud print bridge command failed.");
     }
 
     // Success! Update local manifest to printed state
@@ -743,7 +770,7 @@ async function triggerPrintJob() {
     piece.printedAt = new Date().toISOString();
     saveProjectsToStorage();
     
-    finishProgressModal(true, `Sent ${piece.filename} successfully!\nYour A1 mini is currently pre-heating and beginning LAN bed-leveling.`);
+    finishProgressModal(true, `Successfully sent ${piece.filename} to printer!\nYour A1 mini has received the cloud trigger and is now starting to print.`);
     updateUI();
   } catch (err) {
     finishProgressModal(false, `Print request failed: ${err.message}`);
@@ -756,7 +783,7 @@ let progressTimer = null;
 
 function startProgressModal(piece) {
   els.progressTitle.textContent = piece.filename;
-  els.progressMessage.textContent = "Starting headless slicing. Bambu Studio may take up to 30s...";
+  els.progressMessage.textContent = "Contacting Cloud Bridge. Starting print sequence...";
   els.progressCloseButton.hidden = true;
   els.progressPercent.textContent = "0%";
   els.progressFill.style.width = "0%";
@@ -774,7 +801,7 @@ function startProgressModal(piece) {
       renderStepsList(phaseIndex, "running");
       els.progressMessage.textContent = getProgressMsg(phaseIndex);
     }
-  }, 6000);
+  }, 800); // Fast, responsive 800ms interval
 }
 
 function finishProgressModal(ok, message) {
@@ -805,12 +832,12 @@ function renderStepsList(activeIndex, status) {
 
 function getProgressMsg(index) {
   return [
-    "Reading printer config and checking LAN connectivity.",
-    "Executing Bambu Studio CLI headless slice.",
-    "Packaging G-code into reference model 3MF container.",
-    "Uploading print package to SD card over FTPS...",
-    "Commanding printer head to kick off calibration via MQTT."
-  ][index] || "Processing printer signals...";
+    "Downloading pre-sliced G-code from GitHub...",
+    "Authenticating secure session with Bambu Lab Cloud...",
+    "Requesting pre-signed AWS S3 upload slots...",
+    "Streaming G-code archive directly to Bambu cloud storage...",
+    "Connecting to Cloud MQTT broker and sending print command..."
+  ][index] || "Processing cloud signals...";
 }
 
 // --- EVENT HANDLERS ---
@@ -827,7 +854,15 @@ function attachEvents() {
     if (e.submitter?.value === "cancel") return;
     e.preventDefault();
     state.helperUrl = els.helperUrlInput.value.trim().replace(/\/$/, "");
+    state.bambuEmail = els.bambuEmailInput.value.trim();
+    state.bambuPassword = els.bambuPasswordInput.value.trim();
+    state.bambuSerial = els.bambuSerialInput.value.trim();
+    
     localStorage.setItem(HELPER_URL_KEY, state.helperUrl);
+    localStorage.setItem(BAMBU_EMAIL_KEY, state.bambuEmail);
+    localStorage.setItem(BAMBU_PASSWORD_KEY, state.bambuPassword);
+    localStorage.setItem(BAMBU_SERIAL_KEY, state.bambuSerial);
+    
     els.settingsDialog.close();
     checkHelperConnection();
   });
