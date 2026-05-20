@@ -9,6 +9,7 @@ const HELPER_URL_KEY = "enigmaprint.helperUrl";
 const BAMBU_EMAIL_KEY = "enigmaprint.bambuEmail";
 const BAMBU_PASSWORD_KEY = "enigmaprint.bambuPassword";
 const BAMBU_SERIAL_KEY = "enigmaprint.bambuSerial";
+const BAMBU_CODE_KEY = "enigmaprint.bambuCode";
 
 // Print phases for the progress modal - Alternative A (Cloud-to-Cloud)
 const PRINT_PHASES = [
@@ -28,6 +29,7 @@ let state = {
   bambuEmail: "",
   bambuPassword: "",
   bambuSerial: "",
+  bambuCode: "",
   revealed: false
 };
 
@@ -48,6 +50,7 @@ const els = {
   bambuEmailInput: document.querySelector("#bambuEmailInput"),
   bambuPasswordInput: document.querySelector("#bambuPasswordInput"),
   bambuSerialInput: document.querySelector("#bambuSerialInput"),
+  bambuCodeInput: document.querySelector("#bambuCodeInput"),
   pingDot: document.querySelector("#pingDot"),
   pingStatusMsg: document.querySelector("#pingStatusMsg"),
   saveSettingsBtn: document.querySelector("#saveSettingsBtn"),
@@ -104,6 +107,9 @@ async function bootstrap() {
   if (els.bambuEmailInput) els.bambuEmailInput.value = state.bambuEmail;
   if (els.bambuPasswordInput) els.bambuPasswordInput.value = state.bambuPassword;
   if (els.bambuSerialInput) els.bambuSerialInput.value = state.bambuSerial;
+
+  state.bambuCode = localStorage.getItem(BAMBU_CODE_KEY) || "";
+  if (els.bambuCodeInput) els.bambuCodeInput.value = state.bambuCode;
 
   // Load projects from local storage first
   state.projects = loadProjectsFromStorage();
@@ -755,6 +761,7 @@ async function triggerPrintJob() {
       body: JSON.stringify({
         email: state.bambuEmail,
         password: state.bambuPassword,
+        code: state.bambuCode,
         serialNumber: state.bambuSerial,
         gcode3mfUrl: absoluteGcodeUrl
       })
@@ -857,11 +864,13 @@ function attachEvents() {
     state.bambuEmail = els.bambuEmailInput.value.trim();
     state.bambuPassword = els.bambuPasswordInput.value.trim();
     state.bambuSerial = els.bambuSerialInput.value.trim();
+    state.bambuCode = els.bambuCodeInput.value.trim();
     
     localStorage.setItem(HELPER_URL_KEY, state.helperUrl);
     localStorage.setItem(BAMBU_EMAIL_KEY, state.bambuEmail);
     localStorage.setItem(BAMBU_PASSWORD_KEY, state.bambuPassword);
     localStorage.setItem(BAMBU_SERIAL_KEY, state.bambuSerial);
+    localStorage.setItem(BAMBU_CODE_KEY, state.bambuCode);
     
     els.settingsDialog.close();
     checkHelperConnection();

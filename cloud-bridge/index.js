@@ -31,12 +31,12 @@ function decodeJwt(token) {
 
 // --- REST Endpoint ---
 app.post("/print-piece", async (req, res) => {
-  const { email, password, serialNumber, gcode3mfUrl } = req.body;
+  const { email, password, code, serialNumber, gcode3mfUrl } = req.body;
 
-  if (!email || !password || !serialNumber || !gcode3mfUrl) {
+  if (!email || !serialNumber || !gcode3mfUrl || (!password && !code)) {
     return res.status(400).json({
       ok: false,
-      message: "Missing credentials or target gcode3mfUrl details."
+      message: "Missing credentials (password or code), serial number, or target gcode3mfUrl details."
     });
   }
 
@@ -44,23 +44,49 @@ app.post("/print-piece", async (req, res) => {
   try {
     // 1. Authenticate with Bambu Lab Cloud REST API
     stages.push("Authenticating with Bambu Cloud");
-    console.log(`[Cloud Bridge] Authenticating user: ${email}`);
-    const loginRes = await fetch("https://api.bambulab.com/v1/user-service/user/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ account: email, password: password, apiError: "" })
-    });
+    let accessToken = null;
 
-    if (!loginRes.ok) {
-      throw new Error(`Login failed with HTTP status ${loginRes.status}`);
+    if (code && code.trim()) {
+      console.log(`[Cloud Bridge] Authenticating user: ${email} via 6-digit verification code: ${code}`);
+      const verifyRes = await fetch("https://api.bambulab.com/v1/user-service/user/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ account: email, code: code.trim() })
+      });
+
+      if (!verifyRes.ok) {
+        throw new Error(`Verification code submission failed: HTTP ${verifyRes.status}`);
+      }
+
+      const verifyData = await verifyRes.json();
+      if (!verifyData.success || !verifyData.accessToken) {
+        throw new Error(verifyData.apiError || "Verification code rejected or expired.");
+      }
+      accessToken = verifyData.accessToken;
+    } else {
+      console.log(`[Cloud Bridge] Authenticating user: ${email} via password`);
+      const loginRes = await fetch("https://api.bambulab.com/v1/user-service/user/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ account: email, password: password, apiError: "" })
+      });
+
+      if (!loginRes.ok) {
+        throw new Error(`Login failed with HTTP status ${loginRes.status}`);
+      }
+
+      const loginData = await loginRes.json();
+
+      // Check if 2FA/verification code is required
+      if (loginData.loginType === "verifyCode") {
+        throw new Error("Verification code sent to email! Please enter the 6-digit code in Settings.");
+      }
+
+      if (!loginData.success || !loginData.accessToken) {
+        throw new Error(loginData.apiError || "Invalid account credentials or authentication rejected.");
+      }
+      accessToken = loginData.accessToken;
     }
-
-    const loginData = await loginRes.json();
-    if (!loginData.success || !loginData.accessToken) {
-      throw new Error(loginData.apiError || "Invalid account credentials or authentication rejected.");
-    }
-
-    const accessToken = loginData.accessToken;
 
     // 2. Obtain numeric uid from JWT or API Preference fallback
     stages.push("Resolving User preference details");
