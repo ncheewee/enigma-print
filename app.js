@@ -767,9 +767,17 @@ async function triggerPrintJob() {
       })
     });
 
-    const result = await response.json();
+    let result;
+    try {
+      result = await response.json();
+    } catch (e) {
+      throw new Error("Could not parse JSON response from Cloud Bridge server. Make sure the server URL is correct and online.");
+    }
+
     if (!response.ok || !result.ok) {
-      throw new Error(result.message || "Cloud print bridge command failed.");
+      const err = new Error(result.message || "Cloud print bridge command failed.");
+      err.stages = result.stages || [];
+      throw err;
     }
 
     // Success! Update local manifest to printed state
@@ -780,7 +788,11 @@ async function triggerPrintJob() {
     finishProgressModal(true, `Successfully sent ${piece.filename} to printer!\nYour A1 mini has received the cloud trigger and is now starting to print.`);
     updateUI();
   } catch (err) {
-    finishProgressModal(false, `Print request failed: ${err.message}`);
+    let customMsg = `Print request failed: ${err.message}`;
+    if (err.message.includes("Failed to fetch")) {
+      customMsg = `⚠️ Connection to Cloud Bridge failed!\n\nThis is usually due to browser Mixed Content blocking: your phone is on HTTPS (GitHub Pages) but your local bridge is HTTP. To solve this:\n1. Test directly from a browser on your Mac at http://127.0.0.1:4777\n2. Or use an HTTPS tunnel (e.g., untun or ngrok) for mobile testing.`;
+    }
+    finishProgressModal(false, customMsg, err.stages || []);
   }
 }
 
@@ -811,10 +823,35 @@ function startProgressModal(piece) {
   }, 800); // Fast, responsive 800ms interval
 }
 
-function finishProgressModal(ok, message) {
+function finishProgressModal(ok, message, stages = []) {
   if (progressTimer) clearInterval(progressTimer);
   
-  const finalIdx = ok ? PRINT_PHASES.length - 1 : 2; // stop early if error
+  let finalIdx;
+  if (ok) {
+    finalIdx = PRINT_PHASES.length - 1;
+  } else {
+    // Determine the step where the error actually happened from stages list
+    if (stages && stages.length > 0) {
+      const lastStage = stages[stages.length - 1];
+      if (lastStage.includes("MQTT") || lastStage.includes("print command")) {
+        finalIdx = 4;
+      } else if (lastStage.includes("S3") || lastStage.includes("Stream")) {
+        finalIdx = 3;
+      } else if (lastStage.includes("slot") || lastStage.includes("upload")) {
+        finalIdx = 2;
+      } else if (lastStage.includes("preference") || lastStage.includes("Authenticating")) {
+        finalIdx = 1;
+      } else if (lastStage.includes("G-code")) {
+        finalIdx = 0;
+      } else {
+        finalIdx = 1;
+      }
+    } else {
+      // If there are no stages, it's likely a local connection issue (Mixed Content or offline)
+      finalIdx = 1; // Mark auth/connection step as error
+    }
+  }
+  
   const finalPercent = PRINT_PHASES[finalIdx].percent;
   
   els.progressPercent.textContent = `${finalPercent}%`;
