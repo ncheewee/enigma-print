@@ -19,6 +19,7 @@ Current endpoints:
 - `GET /health` confirms the helper is running.
 - `POST /open-piece` opens a workspace-relative 3MF in Bambu Studio.
 - `POST /slice-piece` runs Bambu Studio CLI slicing and writes G-code under `generated/sliced/<project>/<piece>/`. This is headless; it does not update the already-open Bambu Studio GUI.
+- `POST /print-piece` slices, uploads the G-code to the printer over FTPS, then sends a LAN MQTT print command.
 
 Example request:
 
@@ -38,8 +39,29 @@ curl -X POST http://127.0.0.1:4777/slice-piece \
 
 Planned endpoints:
 
-- `POST /print-piece` to send a sliced job to the printer once the local Bambu workflow is proven.
 - A small launch agent so the helper starts automatically after login.
+
+## Local Printer Config
+
+Printer control needs local-only credentials. Copy the example file and fill it in:
+
+```bash
+cp config/local_printer.example.json config/local_printer.json
+```
+
+`config/local_printer.json` is git-ignored. It needs:
+
+- `printerHost`: printer IP address on the same LAN.
+- `serialNumber`: printer serial number, used in the MQTT topic.
+- `accessCode`: LAN access code shown by the printer/Bambu Handy/Studio LAN mode settings.
+
+The current print path is experimental and intentionally local-only:
+
+```text
+3MF -> Bambu Studio CLI slice -> plate_1.gcode -> printer FTPS upload -> MQTT print command
+```
+
+By default the helper uploads to `cache/enigma-<project>-<piece>.gcode` and sends a `gcode_file` MQTT command for that same path. Some firmware versions may require LAN-only or developer mode for MQTT/FTPS control.
 
 Security notes:
 

@@ -103,7 +103,7 @@ For one-click local opening from the published dashboard, run:
 python3 scripts/local_helper.py
 ```
 
-The helper listens on `http://127.0.0.1:4777` and can open or slice selected workspace 3MF files with Bambu Studio. Print submission is the next local-helper endpoint to prove.
+The helper listens on `http://127.0.0.1:4777` and can open, slice, or experimentally submit selected workspace 3MF files. Printing requires a local-only `config/local_printer.json`; see `docs/local-helper.md`.
 
 The next practical step is the relief-art generator:
 

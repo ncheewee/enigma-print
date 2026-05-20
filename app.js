@@ -107,6 +107,9 @@ async function handlePieceActionClick(event) {
     if (action.dataset.pieceAction === "slice") {
       await slicePieceWithHelper(project, piece);
     }
+    if (action.dataset.pieceAction === "print") {
+      await printPieceWithHelper(project, piece);
+    }
 }
 
 async function importManifest(event) {
@@ -261,6 +264,7 @@ function renderProject(project) {
         ${piece.path ? `<a class="piece-link" href="${escapeHtml(piece.path)}">Download</a>` : ""}
         ${piece.path ? `<button class="piece-link" type="button" data-piece-action="open" data-piece-id="${escapeHtml(piece.id)}">Open</button>` : ""}
         ${piece.path ? `<button class="piece-link" type="button" data-piece-action="slice" data-piece-id="${escapeHtml(piece.id)}">Slice G-code</button>` : ""}
+        ${piece.path ? `<button class="piece-link" type="button" data-piece-action="print" data-piece-id="${escapeHtml(piece.id)}">Print G-code</button>` : ""}
       </div>
     </article>
   `).join("");
@@ -301,6 +305,7 @@ function renderTodayPiece(piece) {
           <a class="piece-link" href="${escapeHtml(piece.path)}">Download 3MF</a>
           <button class="piece-link" type="button" data-piece-action="open" data-piece-id="${escapeHtml(piece.id)}">Open</button>
           <button class="piece-link" type="button" data-piece-action="slice" data-piece-id="${escapeHtml(piece.id)}">Slice G-code</button>
+          <button class="piece-link" type="button" data-piece-action="print" data-piece-id="${escapeHtml(piece.id)}">Print G-code</button>
         </div>
       ` : ""}
     </div>
@@ -418,6 +423,32 @@ async function slicePieceWithHelper(project, piece) {
     );
   } catch {
     window.alert("Local helper could not slice this piece. Check that scripts/local_helper.py is running and Bambu Studio is installed.");
+  }
+}
+
+async function printPieceWithHelper(project, piece) {
+  const confirmed = window.confirm(`Slice and send ${piece.filename} to the configured printer?`);
+  if (!confirmed) return;
+
+  try {
+    const response = await fetch(`${HELPER_URL}/print-piece`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId: project.id,
+        pieceId: piece.id,
+        path: piece.path
+      })
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.message || "Print request failed.");
+    window.alert(
+      `Print command sent for ${piece.filename}\n\n` +
+      `Uploaded: ${result.remoteFilename}\n` +
+      `Printer: ${result.printerHost}`
+    );
+  } catch (error) {
+    window.alert(`Could not send print job: ${error.message}`);
   }
 }
 

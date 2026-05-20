@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 result.json
 generated/sliced/
+config/local_printer.json

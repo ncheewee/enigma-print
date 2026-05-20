@@ -1,0 +1,13 @@
+{
+  "printerHost": "192.168.1.123",
+  "serialNumber": "YOUR_PRINTER_SERIAL",
+  "accessCode": "YOUR_LAN_ACCESS_CODE",
+  "username": "bblp",
+  "ftpPort": 990,
+  "mqttPort": 8883,
+  "remoteFilename": "",
+  "printCommand": "gcode_file",
+  "bedLeveling": true,
+  "flowCalibration": false,
+  "vibrationCalibration": false
+}
