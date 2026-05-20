@@ -9,7 +9,7 @@
   "ftpPassive": true,
   "subnet": "",
   "remoteFilename": "",
-  "printCommand": "gcode_file",
+  "printCommand": "project_file",
   "bedLeveling": true,
   "flowCalibration": false,
   "vibrationCalibration": false

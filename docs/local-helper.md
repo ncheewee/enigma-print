@@ -60,10 +60,10 @@ cp config/local_printer.example.json config/local_printer.json
 The current print path is experimental and intentionally local-only:
 
 ```text
-3MF -> Bambu Studio CLI slice -> plate_1.gcode -> printer FTPS upload -> MQTT print command
+3MF -> Bambu Studio CLI slice -> plate_1.gcode -> .gcode.3mf package -> printer FTPS upload -> MQTT project_file command
 ```
 
-By default the helper uploads to `cache/enigma-<project>-<piece>.gcode` and sends a `gcode_file` MQTT command for that same path. Some firmware versions may require LAN-only or developer mode for MQTT/FTPS control.
+By default the helper uploads to `cache/<piece>.gcode.3mf` and sends a `project_file` MQTT command pointing at `Metadata/plate_1.gcode` inside that package. Some firmware versions may require LAN-only or developer mode for MQTT/FTPS control.
 
 Security notes:
 

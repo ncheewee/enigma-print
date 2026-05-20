@@ -9,12 +9,14 @@ frontend can ask localhost to open a generated piece.
 from __future__ import annotations
 
 import ftplib
+import hashlib
 import json
 import socket
 import ssl
 import struct
 import subprocess
 import time
+import zipfile
 from ipaddress import ip_network
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -102,7 +104,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             config = load_printer_config()
             sliced = slice_piece_to_gcode(piece_path)
-            print_result = send_gcode_to_printer(sliced["gcode"], config)
+            print_result = send_gcode_to_printer(piece_path, sliced, config)
         except HelperError as error:
             self.send_json(error.payload, status=error.status)
             return
@@ -198,17 +200,110 @@ def load_printer_config() -> dict:
     return config
 
 
-def send_gcode_to_printer(gcode_path: Path, config: dict) -> dict:
+def send_gcode_to_printer(piece_path: Path, sliced: dict, config: dict) -> dict:
     host = resolve_printer_host(config)
-    remote_name = config.get("remoteFilename") or f"cache/enigma-{gcode_path.parent.parent.name}-{gcode_path.parent.name}.gcode"
-    upload_gcode_ftps(gcode_path, remote_name, config, host)
-    command = build_print_command(remote_name, config)
+    gcode_3mf = build_gcode_3mf(piece_path, sliced)
+    remote_name = config.get("remoteFilename") or f"cache/{gcode_3mf.name}"
+    upload_gcode_ftps(gcode_3mf, remote_name, config, host)
+    command = build_print_command(remote_name, config, gcode_3mf)
     publish_mqtt(config, command, host)
     return {
         "printerHost": host,
         "remoteFilename": remote_name,
+        "package": str(gcode_3mf.relative_to(ROOT)),
         "command": command,
     }
+
+
+def build_gcode_3mf(piece_path: Path, sliced: dict) -> Path:
+    gcode_path = sliced["gcode"]
+    output_path = sliced["output_dir"] / f"{piece_path.stem}.gcode.3mf"
+    gcode_bytes = gcode_path.read_bytes()
+    gcode_md5 = hashlib.md5(gcode_bytes).hexdigest()
+
+    with zipfile.ZipFile(piece_path) as source, zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_DEFLATED) as package:
+        existing = set()
+        for item in source.infolist():
+            if item.filename in {"Metadata/plate_1.gcode", "Metadata/plate_1.gcode.md5", "Metadata/plate_1.json"}:
+                continue
+            if item.filename == "Metadata/model_settings.config":
+                package.writestr(item.filename, gcode_model_settings_xml())
+            elif item.filename == "Metadata/slice_info.config":
+                package.writestr(item.filename, gcode_slice_info_xml(sliced, piece_path))
+            else:
+                package.writestr(item, source.read(item.filename))
+            existing.add(item.filename)
+
+        if "Metadata/model_settings.config" not in existing:
+            package.writestr("Metadata/model_settings.config", gcode_model_settings_xml())
+        if "Metadata/slice_info.config" not in existing:
+            package.writestr("Metadata/slice_info.config", gcode_slice_info_xml(sliced, piece_path))
+        package.writestr("Metadata/plate_1.gcode", gcode_bytes)
+        package.writestr("Metadata/plate_1.gcode.md5", gcode_md5)
+        package.writestr("Metadata/plate_1.json", "{}")
+    return output_path
+
+
+def gcode_model_settings_xml() -> str:
+    return """<?xml version="1.0" encoding="UTF-8"?>
+<config>
+  <plate>
+    <metadata key="plater_id" value="1"/>
+    <metadata key="plater_name" value=""/>
+    <metadata key="locked" value="false"/>
+    <metadata key="filament_map_mode" value="Auto For Flush"/>
+    <metadata key="filament_maps" value="1"/>
+    <metadata key="filament_volume_maps" value="0"/>
+    <metadata key="gcode_file" value="Metadata/plate_1.gcode"/>
+    <metadata key="thumbnail_file" value="Metadata/plate_1.png"/>
+    <metadata key="thumbnail_no_light_file" value="Metadata/plate_no_light_1.png"/>
+    <metadata key="top_file" value="Metadata/top_1.png"/>
+    <metadata key="pick_file" value="Metadata/pick_1.png"/>
+    <metadata key="pattern_bbox_file" value="Metadata/plate_1.json"/>
+  </plate>
+</config>
+"""
+
+
+def gcode_slice_info_xml(sliced: dict, piece_path: Path) -> str:
+    result_path = sliced["output_dir"] / "result.json"
+    prediction = 0
+    weight = 0.0
+    if result_path.exists():
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        plates = result.get("sliced_plates") or []
+        if plates:
+            prediction = int(float(plates[0].get("total_predication", 0)))
+            filaments = plates[0].get("filaments") or []
+            weight = sum(float(item.get("total_used_g", 0)) for item in filaments)
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<config>
+  <header>
+    <header_item key="X-BBL-Client-Type" value="slicer"/>
+    <header_item key="X-BBL-Client-Version" value="02.06.00.51"/>
+  </header>
+  <plate>
+    <metadata key="index" value="1"/>
+    <metadata key="extruder_type" value="0"/>
+    <metadata key="nozzle_volume_type" value="0"/>
+    <metadata key="printer_model_id" value="N1"/>
+    <metadata key="nozzle_diameters" value="0.6"/>
+    <metadata key="timelapse_type" value="0"/>
+    <metadata key="prediction" value="{prediction}"/>
+    <metadata key="weight" value="{weight:.2f}"/>
+    <metadata key="outside" value="false"/>
+    <metadata key="support_used" value="false"/>
+    <metadata key="label_object_enabled" value="false"/>
+    <metadata key="filament_maps" value="1"/>
+    <metadata key="limit_filament_maps" value="0"/>
+    <object identify_id="901" name="{piece_path.name}" skipped="false" />
+    <filament id="1" tray_info_idx="GFA00" type="PLA" color="#163D3A" used_g="{weight:.2f}" group_id="0" nozzle_diameter="0.60" volume_type="Standard"/>
+    <layer_filament_lists>
+      <layer_filament_list filament_list="0" layer_ranges="0 9999" />
+    </layer_filament_lists>
+  </plate>
+</config>
+"""
 
 
 def resolve_printer_host(config: dict) -> str:
@@ -347,15 +442,32 @@ def is_timeout_error(error: BaseException) -> bool:
     return isinstance(error, (socket.timeout, TimeoutError)) or getattr(error, "errno", None) in {60, 110}
 
 
-def build_print_command(remote_name: str, config: dict) -> dict:
+def build_print_command(remote_name: str, config: dict, package_path: Path | None = None) -> dict:
     sequence_id = str(int(time.time()))
-    command = config.get("printCommand", "gcode_file")
-    if command == "gcode_file":
+    command = config.get("printCommand", "project_file")
+    if command == "project_file":
+        md5 = ""
+        if package_path:
+            try:
+                with zipfile.ZipFile(package_path) as package:
+                    md5 = package.read("Metadata/plate_1.gcode.md5").decode("utf-8")
+            except Exception:
+                md5 = ""
         return {
             "print": {
                 "sequence_id": sequence_id,
-                "command": "gcode_file",
-                "param": f"/{remote_name.lstrip('/')}",
+                "command": "project_file",
+                "url": f"ftp:///{remote_name.lstrip('/')}",
+                "param": "Metadata/plate_1.gcode",
+                "subtask_id": "0",
+                "subtask_name": Path(remote_name).name,
+                "use_ams": False,
+                "timelapse": False,
+                "flow_cali": bool(config.get("flowCalibration", False)),
+                "bed_leveling": bool(config.get("bedLeveling", True)),
+                "vibration_cali": bool(config.get("vibrationCalibration", False)),
+                "layer_inspect": False,
+                **({"md5": md5} if md5 else {}),
             }
         }
 
