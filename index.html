@@ -2,169 +2,49 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Enigma Print</title>
-    <meta name="theme-color" content="#196a60">
-    <meta name="description" content="Daily mystery 3D print puzzle projects.">
-    <link rel="manifest" href="site.webmanifest">
-    <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="styles.css">
+    <meta http-equiv="refresh" content="0; url=enigma-gemini/index.html">
+    <title>Redirecting to Enigma Print Dashboard...</title>
+    <script>
+      window.location.href = "enigma-gemini/index.html";
+    </script>
+    <style>
+      body {
+        background-color: #0E1210;
+        color: #E1F5EE;
+        font-family: 'Outfit', sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        margin: 0;
+      }
+      .loader {
+        text-align: center;
+      }
+      .spinner {
+        border: 4px solid rgba(29, 158, 117, 0.1);
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border-left-color: #1D9E75;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 16px auto;
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      a {
+        color: #5DCAA5;
+        text-decoration: none;
+      }
+    </style>
   </head>
   <body>
-    <div class="app-shell">
-      <aside class="sidebar" aria-label="Project navigation">
-        <div class="brand">
-          <div class="brand-mark" aria-hidden="true">E</div>
-          <div>
-            <h1>Enigma Print</h1>
-            <p>Daily mystery prints</p>
-          </div>
-        </div>
-
-        <div class="sidebar-actions">
-          <button class="primary-button" id="newProjectButton" type="button">
-            <span aria-hidden="true">+</span>
-            New weekly puzzle
-          </button>
-          <button class="secondary-button" id="importButton" type="button">Import manifest</button>
-          <input id="importInput" type="file" accept="application/json,.json" hidden>
-        </div>
-
-        <nav class="project-list" id="projectList" aria-label="Puzzle projects"></nav>
-      </aside>
-
-      <main class="workspace">
-        <header class="topbar">
-          <div>
-            <div class="mode-line">
-              <p class="eyebrow" id="storageMode">GitHub Pages dashboard</p>
-              <span class="version-badge" id="versionBadge">v0.4.0</span>
-            </div>
-            <h2 id="projectTitle">Loading...</h2>
-          </div>
-          <div class="topbar-actions">
-            <button class="icon-button" id="exportButton" type="button" title="Export project manifest" aria-label="Export project manifest">
-              <span aria-hidden="true">⇩</span>
-            </button>
-            <button class="icon-button" id="resetButton" type="button" title="Reload published data" aria-label="Reload published data">
-              <span aria-hidden="true">↻</span>
-            </button>
-          </div>
-        </header>
-
-        <section class="summary-band" aria-label="Project summary">
-          <div class="summary-copy">
-            <p class="status-pill" id="projectStatus">Active</p>
-            <p id="projectSummary"></p>
-          </div>
-          <div class="metrics" id="metrics"></div>
-        </section>
-
-        <section class="content-grid">
-          <div class="panel reveal-panel">
-            <div class="panel-header">
-              <div>
-                <p class="eyebrow">Reveal</p>
-                <h3>Generated artwork</h3>
-              </div>
-            </div>
-            <div id="artworkPreview" class="artwork-preview"></div>
-          </div>
-
-          <div class="panel">
-            <div class="panel-header">
-              <div>
-                <p class="eyebrow">Today</p>
-                <h3 id="todayTitle">Next print</h3>
-              </div>
-              <button class="secondary-button" id="markPrintedButton" type="button">Mark printed</button>
-            </div>
-            <div class="today-piece" id="todayPiece"></div>
-          </div>
-
-          <div class="panel">
-            <div class="panel-header">
-              <div>
-                <p class="eyebrow">Archive</p>
-                <h3>Project files</h3>
-              </div>
-            </div>
-            <div class="file-list" id="fileList"></div>
-          </div>
-        </section>
-
-        <section class="panel timeline-panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Week plan</p>
-              <h3>Daily reveal pieces</h3>
-            </div>
-          </div>
-          <div class="piece-grid" id="pieceGrid"></div>
-        </section>
-      </main>
+    <div class="loader">
+      <div class="spinner"></div>
+      <p>Redirecting to premium dashboard...</p>
+      <p><small>If you are not redirected automatically, <a href="enigma-gemini/index.html">click here</a>.</small></p>
     </div>
-
-    <dialog id="projectDialog">
-      <form method="dialog" class="dialog-form" id="projectForm">
-        <div class="dialog-header">
-          <div>
-            <p class="eyebrow">Generate queue</p>
-            <h2>New weekly puzzle</h2>
-          </div>
-          <button class="icon-button" value="cancel" type="submit" aria-label="Close dialog">
-            <span aria-hidden="true">×</span>
-          </button>
-        </div>
-
-        <label>
-          Project name
-          <input id="nameInput" name="name" required maxlength="80" placeholder="Week 21 mystery">
-        </label>
-
-        <label>
-          Secret prompt hint
-          <input id="hintInput" name="hint" maxlength="120" placeholder="Ancient mechanical garden">
-        </label>
-
-        <div class="form-row">
-          <label>
-            Pieces
-            <input id="piecesInput" name="pieces" required min="3" max="14" value="7" type="number">
-          </label>
-          <label>
-            Start date
-            <input id="startInput" name="startDate" required type="date">
-          </label>
-        </div>
-
-        <menu class="dialog-actions">
-          <button class="secondary-button" value="cancel" type="submit">Cancel</button>
-          <button class="primary-button" id="createProjectSubmit" value="default" type="submit">Create project</button>
-        </menu>
-      </form>
-    </dialog>
-
-    <dialog id="progressDialog" class="progress-dialog" aria-labelledby="progressTitle">
-      <div class="progress-card">
-        <div class="progress-head">
-          <div>
-            <p class="eyebrow" id="progressEyebrow">Print job</p>
-            <h2 id="progressTitle">Preparing print</h2>
-          </div>
-          <strong id="progressPercent">0%</strong>
-        </div>
-        <div class="progress-bar" aria-hidden="true">
-          <span id="progressFill"></span>
-        </div>
-        <ol class="progress-steps" id="progressSteps"></ol>
-        <p class="progress-message" id="progressMessage">Waiting for local helper.</p>
-        <div class="progress-actions">
-          <button class="secondary-button" id="progressCloseButton" type="button">Close</button>
-        </div>
-      </div>
-    </dialog>
-
-    <script src="app.js" type="module"></script>
   </body>
 </html>
