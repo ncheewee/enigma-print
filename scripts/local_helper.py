@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BAMBU_STUDIO = Path("/Applications/BambuStudio.app")
 BAMBU_STUDIO_CLI = BAMBU_STUDIO / "Contents/MacOS/BambuStudio"
 PRINTER_CONFIG = ROOT / "config" / "local_printer.json"
-HOST = "127.0.0.1"
+HOST = "0.0.0.0"
 PORT = 4777
 
 
