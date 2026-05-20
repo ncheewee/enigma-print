@@ -18,7 +18,7 @@ Current endpoints:
 
 - `GET /health` confirms the helper is running.
 - `POST /open-piece` opens a workspace-relative 3MF in Bambu Studio.
-- `POST /slice-piece` runs Bambu Studio CLI slicing and writes G-code under `generated/sliced/<project>/<piece>/`.
+- `POST /slice-piece` runs Bambu Studio CLI slicing and writes G-code under `generated/sliced/<project>/<piece>/`. This is headless; it does not update the already-open Bambu Studio GUI.
 
 Example request:
 
