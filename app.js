@@ -97,7 +97,7 @@ function attachEvents() {
 
 async function handlePieceActionClick(event) {
     const action = event.target.closest("[data-piece-action]");
-    if (!action) return;
+    if (!action || action.disabled) return;
     const project = getSelectedProject();
     const piece = project?.pieces.find((item) => item.id === action.dataset.pieceId);
     if (!project || !piece) return;
@@ -105,10 +105,10 @@ async function handlePieceActionClick(event) {
       await openPieceWithHelper(project, piece);
     }
     if (action.dataset.pieceAction === "slice") {
-      await slicePieceWithHelper(project, piece);
+      await withBusyAction(action, "Slicing...", () => slicePieceWithHelper(project, piece));
     }
     if (action.dataset.pieceAction === "print") {
-      await printPieceWithHelper(project, piece);
+      await withBusyAction(action, "Preparing...", () => printPieceWithHelper(project, piece, action));
     }
 }
 
@@ -426,11 +426,12 @@ async function slicePieceWithHelper(project, piece) {
   }
 }
 
-async function printPieceWithHelper(project, piece) {
+async function printPieceWithHelper(project, piece, action) {
   const confirmed = window.confirm(`Slice and send ${piece.filename} to the configured printer?`);
   if (!confirmed) return;
 
   try {
+    updateBusyAction(action, "Slicing...");
     const response = await fetch(`${HELPER_URL}/print-piece`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -440,16 +441,37 @@ async function printPieceWithHelper(project, piece) {
         path: piece.path
       })
     });
+    updateBusyAction(action, "Checking...");
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.message || "Print request failed.");
     window.alert(
       `Print command sent for ${piece.filename}\n\n` +
       `Uploaded: ${result.remoteFilename}\n` +
-      `Printer: ${result.printerHost}`
+      `Printer: ${result.printerHost}\n\n` +
+      `${(result.stages || []).join("\n")}`
     );
   } catch (error) {
     window.alert(`Could not send print job: ${error.message}`);
   }
+}
+
+async function withBusyAction(button, label, task) {
+  const originalText = button.textContent;
+  updateBusyAction(button, label);
+  try {
+    await task();
+  } finally {
+    button.disabled = false;
+    button.classList.remove("busy");
+    button.textContent = originalText;
+  }
+}
+
+function updateBusyAction(button, label) {
+  if (!button) return;
+  button.disabled = true;
+  button.classList.add("busy");
+  button.textContent = label;
 }
 
 function addDays(dateString, days) {

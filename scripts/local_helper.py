@@ -101,11 +101,15 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(404, f"File not found: {relative_path}")
             return
 
+        stages = []
         try:
+            stages.append("Loaded printer config")
             config = load_printer_config()
+            stages.append("Sliced 3MF to G-code")
             sliced = slice_piece_to_gcode(piece_path)
-            print_result = send_gcode_to_printer(piece_path, sliced, config)
+            print_result = send_gcode_to_printer(piece_path, sliced, config, stages)
         except HelperError as error:
+            error.payload["stages"] = stages
             self.send_json(error.payload, status=error.status)
             return
 
@@ -114,6 +118,7 @@ class Handler(BaseHTTPRequestHandler):
                 "ok": True,
                 "piece": str(piece_path.relative_to(ROOT)),
                 "gcode": str(sliced["gcode"].relative_to(ROOT)),
+                "stages": stages,
                 **print_result,
             }
         )
@@ -200,13 +205,21 @@ def load_printer_config() -> dict:
     return config
 
 
-def send_gcode_to_printer(piece_path: Path, sliced: dict, config: dict) -> dict:
+def send_gcode_to_printer(piece_path: Path, sliced: dict, config: dict, stages: list[str] | None = None) -> dict:
     host = resolve_printer_host(config)
+    if stages is not None:
+        stages.append(f"Resolved printer at {host}")
     gcode_3mf = build_gcode_3mf(piece_path, sliced)
+    if stages is not None:
+        stages.append("Packaged sliced G-code as .gcode.3mf")
     remote_name = config.get("remoteFilename") or f"cache/{gcode_3mf.name}"
     upload_gcode_ftps(gcode_3mf, remote_name, config, host)
+    if stages is not None:
+        stages.append(f"Uploaded {remote_name}")
     command = build_print_command(remote_name, config, gcode_3mf)
     publish_mqtt(config, command, host)
+    if stages is not None:
+        stages.append("Sent project_file print command")
     return {
         "printerHost": host,
         "remoteFilename": remote_name,

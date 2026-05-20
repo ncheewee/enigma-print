@@ -474,6 +474,29 @@ button.piece-link {
   cursor: pointer;
 }
 
+.piece-link.busy,
+.piece-link:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.piece-link.busy::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border: 2px solid #b9ccc6;
+  border-top-color: var(--accent-strong);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .piece-token {
   display: grid;
   place-items: center;

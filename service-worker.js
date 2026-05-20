@@ -1,4 +1,4 @@
-const CACHE_NAME = "enigma-print-v5";
+const CACHE_NAME = "enigma-print-v6";
 const SHELL_ASSETS = [
   "./",
   "./index.html",
