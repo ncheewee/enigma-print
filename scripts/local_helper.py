@@ -344,6 +344,15 @@ def remote_file_exists_with_config(remote_name: str, config: dict, host: str) ->
 def build_print_command(remote_name: str, config: dict) -> dict:
     sequence_id = str(int(time.time()))
     command = config.get("printCommand", "gcode_file")
+    if command == "gcode_file":
+        return {
+            "print": {
+                "sequence_id": sequence_id,
+                "command": "gcode_file",
+                "param": f"/{remote_name.lstrip('/')}",
+            }
+        }
+
     return {
         "print": {
             "sequence_id": sequence_id,
