@@ -52,8 +52,8 @@ const els = {
   bambuSerialInput: document.querySelector("#bambuSerialInput"),
   bambuCodeInput: document.querySelector("#bambuCodeInput"),
   pingDot: document.querySelector("#pingDot"),
-  pingStatusMsg: document.querySelector("#pingStatusMsg"),
   saveSettingsBtn: document.querySelector("#saveSettingsBtn"),
+  cancelSettingsBtn: document.querySelector("#cancelSettingsBtn"),
   
   obliqueViewer: document.querySelector("#obliqueViewer"),
   completionBadge: document.querySelector("#completionBadge"),
@@ -893,9 +893,13 @@ function attachEvents() {
     checkHelperConnection();
   });
 
+  // Settings Cancel Trigger
+  els.cancelSettingsBtn.addEventListener("click", () => {
+    els.settingsDialog.close();
+  });
+
   // Settings Save Form
   els.settingsForm.addEventListener("submit", (e) => {
-    if (e.submitter?.value === "cancel") return;
     e.preventDefault();
     state.helperUrl = els.helperUrlInput.value.trim().replace(/\/$/, "");
     state.bambuEmail = els.bambuEmailInput.value.trim();
