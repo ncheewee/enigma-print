@@ -55,6 +55,8 @@ cp config/local_printer.example.json config/local_printer.json
 - `serialNumber`: printer serial number, used in the MQTT topic.
 - `accessCode`: LAN access code shown by the printer/Bambu Handy/Studio LAN mode settings.
 
+`printerHost` can change when DHCP gives the printer a new IP. The helper first tries the configured host, then scans the local ARP cache and finally the configured/local subnet for a device with both Bambu LAN ports open. When it finds exactly one match, it updates `config/local_printer.json`.
+
 The current print path is experimental and intentionally local-only:
 
 ```text

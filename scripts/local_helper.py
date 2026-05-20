@@ -15,6 +15,7 @@ import ssl
 import struct
 import subprocess
 import time
+from ipaddress import ip_network
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -187,7 +188,7 @@ def load_printer_config() -> dict:
             nextStep="Copy config/local_printer.example.json to config/local_printer.json and fill in printerHost, serialNumber, and accessCode.",
         )
     config = json.loads(PRINTER_CONFIG.read_text(encoding="utf-8"))
-    required = ["printerHost", "serialNumber", "accessCode"]
+    required = ["serialNumber", "accessCode"]
     missing = [key for key in required if not config.get(key)]
     if missing:
         raise HelperError(
@@ -198,29 +199,146 @@ def load_printer_config() -> dict:
 
 
 def send_gcode_to_printer(gcode_path: Path, config: dict) -> dict:
+    host = resolve_printer_host(config)
     remote_name = config.get("remoteFilename") or f"cache/enigma-{gcode_path.parent.parent.name}-{gcode_path.parent.name}.gcode"
-    upload_gcode_ftps(gcode_path, remote_name, config)
+    upload_gcode_ftps(gcode_path, remote_name, config, host)
     command = build_print_command(remote_name, config)
-    publish_mqtt(config, command)
+    publish_mqtt(config, command, host)
     return {
-        "printerHost": config["printerHost"],
+        "printerHost": host,
         "remoteFilename": remote_name,
         "command": command,
     }
 
 
-def upload_gcode_ftps(gcode_path: Path, remote_name: str, config: dict) -> None:
-    host = config["printerHost"]
+def resolve_printer_host(config: dict) -> str:
+    configured = config.get("printerHost")
+    if configured and host_has_ports(configured, config):
+        return configured
+
+    cached = discover_from_arp(config)
+    if cached:
+        config["printerHost"] = cached
+        save_printer_config(config)
+        return cached
+
+    scanned = discover_on_subnet(config)
+    if scanned:
+        config["printerHost"] = scanned
+        save_printer_config(config)
+        return scanned
+
+    raise HelperError(
+        "Could not discover Bambu printer on LAN.",
+        status=502,
+        configuredHost=configured,
+        nextStep="Check that the printer is awake, on the same Wi-Fi/LAN, and LAN mode is enabled.",
+    )
+
+
+def discover_from_arp(config: dict) -> str | None:
+    result = subprocess.run(["arp", "-a"], capture_output=True, text=True, check=False)
+    candidates = []
+    for line in result.stdout.splitlines():
+        if "(" not in line or ")" not in line:
+            continue
+        candidate = line.split("(", 1)[1].split(")", 1)[0]
+        if host_has_ports(candidate, config, timeout=1.0):
+            candidates.append(candidate)
+    if len(candidates) == 1:
+        return candidates[0]
+    return config.get("printerHost") if config.get("printerHost") in candidates else None
+
+
+def discover_on_subnet(config: dict) -> str | None:
+    subnet = config.get("subnet") or local_ipv4_subnet()
+    if not subnet:
+        return None
+    candidates = []
+    for ip in ip_network(subnet, strict=False).hosts():
+        candidate = str(ip)
+        if host_has_ports(candidate, config, timeout=0.35):
+            candidates.append(candidate)
+            if len(candidates) > 1:
+                break
+    if len(candidates) == 1:
+        return candidates[0]
+    return None
+
+
+def local_ipv4_subnet() -> str | None:
+    result = subprocess.run(["ifconfig", "en0"], capture_output=True, text=True, check=False)
+    for line in result.stdout.splitlines():
+        parts = line.strip().split()
+        if len(parts) >= 4 and parts[0] == "inet":
+            return f"{parts[1]}/24"
+    return None
+
+
+def host_has_ports(host: str, config: dict, timeout: float = 1.0) -> bool:
+    return can_connect(host, int(config.get("mqttPort", 8883)), timeout) and can_connect(
+        host, int(config.get("ftpPort", 990)), timeout
+    )
+
+
+def can_connect(host: str, port: int, timeout: float) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def save_printer_config(config: dict) -> None:
+    PRINTER_CONFIG.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+
+
+def upload_gcode_ftps(gcode_path: Path, remote_name: str, config: dict, host: str) -> None:
     port = int(config.get("ftpPort", 990))
     username = config.get("username", "bblp")
     password = config["accessCode"]
+    timeout = int(config.get("networkTimeout", 60))
     try:
-        with ImplicitFTP_TLS(host=host, user=username, passwd=password, port=port, timeout=15) as ftp:
+        with ImplicitFTP_TLS(host=host, user=username, passwd=password, port=port, timeout=timeout) as ftp:
+            ftp.set_pasv(bool(config.get("ftpPassive", True)))
             ftp.prot_p()
             with gcode_path.open("rb") as handle:
-                ftp.storbinary(f"STOR {remote_name}", handle)
+                try:
+                    ftp.storbinary(f"STOR {remote_name}", handle, blocksize=64 * 1024)
+                except socket.timeout:
+                    if not remote_file_exists_with_config(remote_name, config, host):
+                        raise
     except Exception as error:
         raise HelperError(f"FTPS upload failed: {error}", status=502) from error
+
+
+def remote_file_exists(ftp: ftplib.FTP, remote_name: str) -> bool:
+    try:
+        directory, filename = remote_name.rsplit("/", 1)
+    except ValueError:
+        directory, filename = "", remote_name
+
+    current = ftp.pwd()
+    try:
+        if directory:
+            ftp.cwd(directory)
+        return filename in ftp.nlst()
+    finally:
+        try:
+            ftp.cwd(current)
+        except Exception:
+            pass
+
+
+def remote_file_exists_with_config(remote_name: str, config: dict, host: str) -> bool:
+    port = int(config.get("ftpPort", 990))
+    username = config.get("username", "bblp")
+    password = config["accessCode"]
+    timeout = int(config.get("networkTimeout", 60))
+    with ImplicitFTP_TLS(host=host, user=username, passwd=password, port=port, timeout=timeout) as ftp:
+        ftp.set_pasv(bool(config.get("ftpPassive", True)))
+        ftp.prot_p()
+        return remote_file_exists(ftp, remote_name)
 
 
 def build_print_command(remote_name: str, config: dict) -> dict:
@@ -242,8 +360,7 @@ def build_print_command(remote_name: str, config: dict) -> dict:
     }
 
 
-def publish_mqtt(config: dict, payload: dict) -> None:
-    host = config["printerHost"]
+def publish_mqtt(config: dict, payload: dict, host: str) -> None:
     port = int(config.get("mqttPort", 8883))
     username = config.get("username", "bblp")
     password = config["accessCode"]
