@@ -55,7 +55,15 @@ app.post("/print-piece", async (req, res) => {
       });
 
       if (!verifyRes.ok) {
-        throw new Error(`Verification code submission failed: HTTP ${verifyRes.status}`);
+        let errText = "";
+        try {
+          const errData = await verifyRes.json();
+          errText = errData.apiError || errData.message || JSON.stringify(errData);
+        } catch (_) {
+          errText = await verifyRes.text();
+        }
+        console.error(`[Cloud Bridge] Verification failed details:`, errText);
+        throw new Error(`Verification code submission failed: HTTP ${verifyRes.status} (${errText})`);
       }
 
       const verifyData = await verifyRes.json();
@@ -79,7 +87,13 @@ app.post("/print-piece", async (req, res) => {
 
       // Check if 2FA/verification code is required
       if (loginData.loginType === "verifyCode") {
-        throw new Error("Verification code sent to email! Please enter the 6-digit code in Settings.");
+        console.log(`[Cloud Bridge] 2FA required for user: ${email}. Dispatched verification email.`);
+        return res.json({
+          ok: false,
+          needsVerification: true,
+          message: "Verification code sent to email! Please enter the code below to authorize.",
+          stages
+        });
       }
 
       if (!loginData.success || !loginData.accessToken) {

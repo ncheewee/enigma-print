@@ -50,10 +50,15 @@ const els = {
   bambuEmailInput: document.querySelector("#bambuEmailInput"),
   bambuPasswordInput: document.querySelector("#bambuPasswordInput"),
   bambuSerialInput: document.querySelector("#bambuSerialInput"),
-  bambuCodeInput: document.querySelector("#bambuCodeInput"),
   pingDot: document.querySelector("#pingDot"),
+  pingStatusMsg: document.querySelector("#pingStatusMsg"),
   saveSettingsBtn: document.querySelector("#saveSettingsBtn"),
   cancelSettingsBtn: document.querySelector("#cancelSettingsBtn"),
+  
+  inlineVerifyContainer: document.querySelector("#inlineVerifyContainer"),
+  inlineVerifyForm: document.querySelector("#inlineVerifyForm"),
+  inlineVerifyInput: document.querySelector("#inlineVerifyInput"),
+  inlineVerifyCancelBtn: document.querySelector("#inlineVerifyCancelBtn"),
   
   obliqueViewer: document.querySelector("#obliqueViewer"),
   completionBadge: document.querySelector("#completionBadge"),
@@ -109,7 +114,6 @@ async function bootstrap() {
   if (els.bambuSerialInput) els.bambuSerialInput.value = state.bambuSerial;
 
   state.bambuCode = localStorage.getItem(BAMBU_CODE_KEY) || "";
-  if (els.bambuCodeInput) els.bambuCodeInput.value = state.bambuCode;
 
   // Load projects from local storage first
   state.projects = loadProjectsFromStorage();
@@ -750,10 +754,21 @@ async function triggerPrintJob() {
   // Open the print progress modal
   startProgressModal(piece);
 
+  // Hide verification container in case it was left open from a prior flow
+  els.inlineVerifyContainer.style.display = "none";
+  els.inlineVerifyInput.value = "";
+
+  await executePrintRequest(piece);
+}
+
+async function executePrintRequest(piece, codeOverride = null) {
   try {
     // Resolve absolute URL to the pre-sliced G-code package
     const absoluteGcodeUrl = new URL(piece.gcode3mfPath, window.location.href).href;
     console.log("[EnigmaPrint] Target pre-sliced G-code URL:", absoluteGcodeUrl);
+
+    // Use override code if provided, otherwise default to state.bambuCode
+    const currentCode = codeOverride !== null ? codeOverride : state.bambuCode;
 
     const response = await fetch(`${state.helperUrl}/print-piece`, {
       method: "POST",
@@ -761,7 +776,7 @@ async function triggerPrintJob() {
       body: JSON.stringify({
         email: state.bambuEmail,
         password: state.bambuPassword,
-        code: state.bambuCode,
+        code: currentCode,
         serialNumber: state.bambuSerial,
         gcode3mfUrl: absoluteGcodeUrl
       })
@@ -775,6 +790,12 @@ async function triggerPrintJob() {
     }
 
     if (!response.ok || !result.ok) {
+      // Check if we need verification!
+      if (result.needsVerification) {
+        handleVerificationPrompt(piece);
+        return;
+      }
+
       const err = new Error(result.message || "Cloud print bridge command failed.");
       err.stages = result.stages || [];
       throw err;
@@ -796,9 +817,71 @@ async function triggerPrintJob() {
   }
 }
 
+function handleVerificationPrompt(piece) {
+  // 1. Pause the progress timer to freeze simulation
+  pauseProgressTimer();
+
+  // 2. Set phase to Auth (35%)
+  currentPhaseIndex = 1;
+  const phase = PRINT_PHASES[1];
+  els.progressPercent.textContent = `${phase.percent}%`;
+  els.progressFill.style.width = `${phase.percent}%`;
+  renderStepsList(1, "running");
+  els.progressMessage.textContent = "Verification code required. A 6-digit code has been sent to your email.";
+
+  // 3. Show the inline verification container
+  els.inlineVerifyContainer.style.display = "block";
+  els.inlineVerifyInput.value = "";
+  els.inlineVerifyInput.focus();
+
+  // 4. Set up listeners (with cleanup to prevent memory leaks)
+  let submitHandler;
+  let cancelHandler;
+
+  const cleanupListeners = () => {
+    els.inlineVerifyForm.removeEventListener("submit", submitHandler);
+    els.inlineVerifyCancelBtn.removeEventListener("click", cancelHandler);
+  };
+
+  submitHandler = async (e) => {
+    e.preventDefault();
+    const code = els.inlineVerifyInput.value.trim();
+    if (!code || code.length !== 6 || !/^\d+$/.test(code)) {
+      alert("Please enter a valid 6-digit verification code.");
+      return;
+    }
+
+    cleanupListeners();
+
+    // Hide input and show loader
+    els.inlineVerifyContainer.style.display = "none";
+    els.progressMessage.textContent = "Submitting code and authenticating secure cloud session...";
+    
+    // Save to state and localStorage for persistence/retry
+    state.bambuCode = code;
+    localStorage.setItem(BAMBU_CODE_KEY, code);
+
+    // Resume progress bar simulation
+    resumeProgressTimer();
+
+    // Re-execute request with the new code
+    await executePrintRequest(piece, code);
+  };
+
+  cancelHandler = () => {
+    cleanupListeners();
+    els.inlineVerifyContainer.style.display = "none";
+    finishProgressModal(false, "Print cancelled by user during verification code entry.");
+  };
+
+  els.inlineVerifyForm.addEventListener("submit", submitHandler);
+  els.inlineVerifyCancelBtn.addEventListener("click", cancelHandler);
+}
+
 // --- PROGRESS DIALOG VIEWER CONTROL ---
 
 let progressTimer = null;
+let currentPhaseIndex = 0;
 
 function startProgressModal(piece) {
   els.progressTitle.textContent = piece.filename;
@@ -810,21 +893,34 @@ function startProgressModal(piece) {
   renderStepsList(0, "running");
   els.printProgressDialog.showModal();
 
-  let phaseIndex = 0;
+  currentPhaseIndex = 0;
+  resumeProgressTimer();
+}
+
+function resumeProgressTimer() {
+  if (progressTimer) clearInterval(progressTimer);
+  
   progressTimer = setInterval(() => {
-    if (phaseIndex < PRINT_PHASES.length - 2) {
-      phaseIndex++;
-      const phase = PRINT_PHASES[phaseIndex];
+    if (currentPhaseIndex < PRINT_PHASES.length - 2) {
+      currentPhaseIndex++;
+      const phase = PRINT_PHASES[currentPhaseIndex];
       els.progressPercent.textContent = `${phase.percent}%`;
       els.progressFill.style.width = `${phase.percent}%`;
-      renderStepsList(phaseIndex, "running");
-      els.progressMessage.textContent = getProgressMsg(phaseIndex);
+      renderStepsList(currentPhaseIndex, "running");
+      els.progressMessage.textContent = getProgressMsg(currentPhaseIndex);
     }
   }, 800); // Fast, responsive 800ms interval
 }
 
+function pauseProgressTimer() {
+  if (progressTimer) {
+    clearInterval(progressTimer);
+    progressTimer = null;
+  }
+}
+
 function finishProgressModal(ok, message, stages = []) {
-  if (progressTimer) clearInterval(progressTimer);
+  pauseProgressTimer();
   
   let finalIdx;
   if (ok) {
@@ -905,13 +1001,11 @@ function attachEvents() {
     state.bambuEmail = els.bambuEmailInput.value.trim();
     state.bambuPassword = els.bambuPasswordInput.value.trim();
     state.bambuSerial = els.bambuSerialInput.value.trim();
-    state.bambuCode = els.bambuCodeInput.value.trim();
     
     localStorage.setItem(HELPER_URL_KEY, state.helperUrl);
     localStorage.setItem(BAMBU_EMAIL_KEY, state.bambuEmail);
     localStorage.setItem(BAMBU_PASSWORD_KEY, state.bambuPassword);
     localStorage.setItem(BAMBU_SERIAL_KEY, state.bambuSerial);
-    localStorage.setItem(BAMBU_CODE_KEY, state.bambuCode);
     
     els.settingsDialog.close();
     checkHelperConnection();

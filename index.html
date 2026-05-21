@@ -208,10 +208,6 @@
             <input type="text" id="bambuSerialInput" required placeholder="01S00A123456789">
           </label>
 
-          <label class="form-label">
-            Email Verification Code (Only if received via email)
-            <input type="text" id="bambuCodeInput" placeholder="6-digit code (e.g. 123456)">
-          </label>
 
           <div class="connection-status-panel">
             <span class="status-dot ping-pending" id="pingDot"></span>
@@ -248,6 +244,22 @@
           <!-- Populated in JS: lists out Slicing, Packaging, FTP Upload, MQTT Send -->
         </ol>
         <p class="progress-message-detail" id="progressMessage">Waiting for LAN slice...</p>
+        
+        <!-- Inline Verification Code Form (Hidden by default) -->
+        <div id="inlineVerifyContainer" style="display: none; margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid rgba(255,255,255,0.1);">
+          <form id="inlineVerifyForm" style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <label class="form-label" style="font-weight: 500; font-size: 0.85rem; color: #a1a1aa; text-align: left; display: block;">
+              Enter the 6-Digit Email Code
+              <input type="text" id="inlineVerifyInput" required maxlength="6" pattern="\d{6}" placeholder="123456" 
+                     style="margin-top: 0.5rem; padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(0,0,0,0.3); color: #fff; text-align: center; font-size: 1.25rem; letter-spacing: 0.25rem; font-weight: bold; width: 100%; box-sizing: border-box; outline: none; transition: border-color 0.2s;">
+            </label>
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.25rem;">
+              <button class="secondary-btn" id="inlineVerifyCancelBtn" type="button" style="flex: 1;">Cancel Print</button>
+              <button class="primary-btn" type="submit" style="flex: 2;">Submit & Start Print</button>
+            </div>
+          </form>
+        </div>
+
         <div class="progress-actions">
           <button class="secondary-btn" id="progressCloseButton" type="button" hidden>Close Window</button>
         </div>
