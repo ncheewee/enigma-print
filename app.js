@@ -8,7 +8,7 @@
 
 const STORAGE_KEY = "enigmaprint.projects.v2";
 const HELPER_URL_KEY = "enigmaprint.helperUrl";
-const APP_VERSION = "v0.5.0-mobile";
+const APP_VERSION = "v0.5.1-mobile";
 
 const PRINT_PHASES = [
   { key: "config", label: "Load printer settings", percent: 8 },
@@ -115,7 +115,8 @@ async function ensureProjectGeometry(project) {
   const geometryPath = project.assets?.geometry || geometryPathFromProject(project);
   if (!geometryPath) return null;
 
-  const loadPromise = fetch(geometryPath, { cache: "no-store" })
+  const separator = geometryPath.includes("?") ? "&" : "?";
+  const loadPromise = fetch(`${geometryPath}${separator}v=${encodeURIComponent(APP_VERSION)}`, { cache: "no-store" })
     .then((response) => {
       if (!response.ok) throw new Error(`No viewer geometry at ${geometryPath}`);
       return response.json();
@@ -823,13 +824,20 @@ function findPieceGeometry(project, piece) {
   }) || null;
 }
 
+function hasViewerOutlines(geometry) {
+  return Boolean(
+    geometry?.combined?.outline?.length ||
+    geometry?.pieces?.some((piece) => piece.outline?.length)
+  );
+}
+
 function drawJigsaw() {
   const project = getSelectedProject();
   if (!project) return;
   const pieces = project.pieces;
   const count = pieces.length;
   const imageSource = project.assets?.sourceHidden || project.assets?.preview || "";
-  if (project.viewerGeometry?.combined?.outline) {
+  if (hasViewerOutlines(project.viewerGeometry)) {
     drawCombinedGeometryJigsaw(project, pieces);
     return;
   }
@@ -882,9 +890,12 @@ function drawCombinedGeometryJigsaw(project, pieces) {
   els.jigsawBoard.setAttribute("viewBox", "0 0 200 200");
   els.jigsawContainer.classList.add("preview-mode");
   const complete = pieces.every((piece) => piece.status === "printed");
-  const svg = renderExtrudedOutlineSvg({
-    outline: project.viewerGeometry.combined.outline,
-    bounds: project.viewerGeometry.bounds || boundsForOutline(project.viewerGeometry.combined.outline),
+  const outlines = project.viewerGeometry.combined?.outline?.length
+    ? [project.viewerGeometry.combined.outline]
+    : project.viewerGeometry.pieces.map((piece) => piece.outline).filter(Boolean);
+  const svg = renderExtrudedOutlinesSvg({
+    outlines,
+    bounds: project.viewerGeometry.bounds || boundsForOutline(outlines[0]),
     width: 200,
     height: 200,
     complete,
@@ -909,9 +920,34 @@ function renderExtrudedOutlineSvg({
   imageHref = "",
   topPattern = false
 }) {
+  return renderExtrudedOutlinesSvg({
+    outlines: [outline],
+    bounds,
+    width,
+    height,
+    complete,
+    revealed,
+    depthScale,
+    imageHref,
+    topPattern
+  });
+}
+
+function renderExtrudedOutlinesSvg({
+  outlines,
+  bounds,
+  width,
+  height,
+  complete,
+  revealed,
+  depthScale = 1,
+  imageHref = "",
+  topPattern = false
+}) {
   const prefix = `geom-${Math.floor(Math.random() * 1e9)}`;
-  const mapped = mapOutlineToViewBox(outline, bounds, width, height);
-  const path = outlinePath(mapped.points);
+  const mappedOutlines = outlines.map((outline) => mapOutlineToViewBox(outline, bounds, width, height));
+  const paths = mappedOutlines.map((mapped) => outlinePath(mapped.points));
+  const primary = mappedOutlines[0];
   const rad = (theta * Math.PI) / 180;
   const dxVec = depth * depthScale * Math.cos(rad);
   const dyVec = depth * depthScale * Math.sin(rad);
@@ -930,29 +966,30 @@ function renderExtrudedOutlineSvg({
     const hiddenFill = `hsl(150, 8%, ${20 - ratio * 8}%)`;
     layers += `
       <g transform="translate(${dxVec * ratio}, ${dyVec * ratio})">
-        <path d="${path}" fill="${revealed ? fill : hiddenFill}" stroke="${revealed ? fill : hiddenFill}" stroke-width="1" />
+        ${paths.map((path) => `<path d="${path}" fill="${revealed ? fill : hiddenFill}" stroke="${revealed ? fill : hiddenFill}" stroke-width="1" />`).join("")}
       </g>
     `;
   }
 
   const pattern = topPattern ? `
     <g clip-path="url(#${prefix}-clip)">
-      <circle cx="${mapped.cx}" cy="${mapped.cy}" r="${mapped.size * 0.16}" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="1.4" />
-      <circle cx="${mapped.cx}" cy="${mapped.cy}" r="${mapped.size * 0.29}" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="1.4" />
-      <circle cx="${mapped.cx}" cy="${mapped.cy}" r="${mapped.size * 0.42}" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
-      <line x1="${mapped.cx - mapped.size * 0.36}" y1="${mapped.cy}" x2="${mapped.cx + mapped.size * 0.36}" y2="${mapped.cy}" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
-      <line x1="${mapped.cx}" y1="${mapped.cy - mapped.size * 0.36}" x2="${mapped.cx}" y2="${mapped.cy + mapped.size * 0.36}" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
+      <circle cx="${primary.cx}" cy="${primary.cy}" r="${primary.size * 0.16}" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="1.4" />
+      <circle cx="${primary.cx}" cy="${primary.cy}" r="${primary.size * 0.29}" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="1.4" />
+      <circle cx="${primary.cx}" cy="${primary.cy}" r="${primary.size * 0.42}" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
+      <line x1="${primary.cx - primary.size * 0.36}" y1="${primary.cy}" x2="${primary.cx + primary.size * 0.36}" y2="${primary.cy}" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
+      <line x1="${primary.cx}" y1="${primary.cy - primary.size * 0.36}" x2="${primary.cx}" y2="${primary.cy + primary.size * 0.36}" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
     </g>
   ` : "";
 
   const imageLayer = imageHref ? `
-    <image href="${escapeHtml(imageHref)}" x="${mapped.imageX}" y="${mapped.imageY}" width="${mapped.imageSize}" height="${mapped.imageSize}" preserveAspectRatio="xMidYMid meet" clip-path="url(#${prefix}-clip)" class="generated-preview-image revealed" />
-    <path d="${path}" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.2" />
+    <image href="${escapeHtml(imageHref)}" x="${primary.imageX}" y="${primary.imageY}" width="${primary.imageSize}" height="${primary.imageSize}" preserveAspectRatio="xMidYMid meet" clip-path="url(#${prefix}-clip)" class="generated-preview-image revealed" />
+    ${paths.map((path) => `<path d="${path}" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.2" />`).join("")}
   ` : `
-    <path d="${path}" fill="${mutedFill}" stroke="${mutedStroke}" stroke-width="1.4" class="viewer-3d-piece-top" />
+    ${paths.map((path) => `<path d="${path}" fill="${mutedFill}" stroke="${mutedStroke}" stroke-width="1.4" class="viewer-3d-piece-top" />`).join("")}
     ${pattern}
   `;
 
+  const clipPaths = paths.map((path) => `<path d="${path}" />`).join("");
   return `
     <svg viewBox="0 0 ${width} ${height}" width="100%" height="100%" style="overflow: visible;">
       <defs>
@@ -962,9 +999,9 @@ function renderExtrudedOutlineSvg({
           <feComponentTransfer><feFuncA type="linear" slope="0.55"/></feComponentTransfer>
           <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
-        <clipPath id="${prefix}-clip"><path d="${path}" /></clipPath>
+        <clipPath id="${prefix}-clip">${clipPaths}</clipPath>
       </defs>
-      <path d="${path}" fill="#000" filter="url(#${prefix}-shadow)" opacity="0.55" />
+      ${paths.map((path) => `<path d="${path}" fill="#000" filter="url(#${prefix}-shadow)" opacity="0.55" />`).join("")}
       ${layers}
       ${imageLayer}
     </svg>
