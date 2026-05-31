@@ -21,6 +21,7 @@
       },
       "assets": {
         "preview": "generated/surprises/orbit-shrine-4pc-single/preview.png",
+        "geometry": "generated/surprises/orbit-shrine-4pc-single/viewer-geometry.json",
         "manifest": "generated/surprises/orbit-shrine-4pc-single/manifest.json"
       },
       "files": [
@@ -95,6 +96,7 @@
       "updatedAt": "2026-05-17T03:16:00Z",
       "assets": {
         "preview": "generated/surprises/night-compass-4pc/preview.png",
+        "geometry": "generated/surprises/night-compass-4pc/viewer-geometry.json",
         "manifest": "generated/surprises/night-compass-4pc/manifest.json"
       },
       "files": [

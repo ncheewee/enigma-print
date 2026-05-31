@@ -90,6 +90,7 @@ let startX = 0;
 let initialTheta = 45;
 let progressTimer = null;
 let currentPhaseIndex = 0;
+const geometryCache = new Map();
 
 async function bootstrap() {
   state.helperUrl = localStorage.getItem(HELPER_URL_KEY) || state.helperUrl;
@@ -104,6 +105,35 @@ async function bootstrap() {
   attachEvents();
   updateUI();
   checkHelperConnection();
+}
+
+async function ensureProjectGeometry(project) {
+  if (!project) return null;
+  if (project.viewerGeometry) return project.viewerGeometry;
+  if (geometryCache.has(project.id)) return geometryCache.get(project.id);
+
+  const geometryPath = project.assets?.geometry || geometryPathFromProject(project);
+  if (!geometryPath) return null;
+
+  const loadPromise = fetch(geometryPath, { cache: "no-store" })
+    .then((response) => {
+      if (!response.ok) throw new Error(`No viewer geometry at ${geometryPath}`);
+      return response.json();
+    })
+    .then((geometry) => {
+      project.viewerGeometry = geometry;
+      return geometry;
+    })
+    .catch(() => null);
+
+  geometryCache.set(project.id, loadPromise);
+  return loadPromise;
+}
+
+function geometryPathFromProject(project) {
+  const source = project.assets?.manifest || project.assets?.preview || project.pieces?.[0]?.path || "";
+  if (!source.includes("/")) return "";
+  return `${source.slice(0, source.lastIndexOf("/"))}/viewer-geometry.json`;
 }
 
 function attachEvents() {
@@ -393,6 +423,12 @@ function updateUI() {
   if (!project) {
     renderEmptyState();
     return;
+  }
+
+  if (!project.viewerGeometry && !geometryCache.has(project.id)) {
+    ensureProjectGeometry(project).then((geometry) => {
+      if (geometry && getSelectedProject()?.id === project.id) updateUI();
+    });
   }
 
   state.selectedProjectId = project.id;
@@ -699,6 +735,23 @@ function drawOblique() {
   const piece = project.pieces[state.selectedDay - 1];
   const isComplete = piece.status === "printed";
   const isProjectComplete = project.pieces.every((item) => item.status === "printed");
+  const pieceGeometry = findPieceGeometry(project, piece);
+  if (pieceGeometry) {
+    els.obliqueViewer.innerHTML = renderExtrudedOutlineSvg({
+      outline: pieceGeometry.outline,
+      bounds: boundsForOutline(pieceGeometry.outline),
+      width: 200,
+      height: 200,
+      complete: isComplete,
+      revealed: true,
+      depthScale: 1,
+      topPattern: true
+    });
+    els.completionBadge.textContent = isProjectComplete ? `${project.pieces.length}/${project.pieces.length} Complete` : `Day ${piece.day}`;
+    els.completionBadge.classList.toggle("complete", isComplete);
+    return;
+  }
+
   const rad = (theta * Math.PI) / 180;
   const dxVec = depth * Math.cos(rad);
   const dyVec = depth * Math.sin(rad);
@@ -764,14 +817,20 @@ function drawOblique() {
   els.completionBadge.classList.toggle("complete", isComplete);
 }
 
+function findPieceGeometry(project, piece) {
+  return project.viewerGeometry?.pieces?.find((item) => {
+    return item.filename === piece.filename || Number(item.day) === Number(piece.day);
+  }) || null;
+}
+
 function drawJigsaw() {
   const project = getSelectedProject();
   if (!project) return;
   const pieces = project.pieces;
   const count = pieces.length;
   const imageSource = project.assets?.sourceHidden || project.assets?.preview || "";
-  if (project.assets?.preview) {
-    drawGeneratedPreviewJigsaw(project, pieces);
+  if (project.viewerGeometry?.combined?.outline) {
+    drawCombinedGeometryJigsaw(project, pieces);
     return;
   }
 
@@ -819,17 +878,135 @@ function drawJigsaw() {
   els.jigsawPiecesGroup.innerHTML = svgOut;
 }
 
-function drawGeneratedPreviewJigsaw(project, pieces) {
-  els.jigsawBoard.setAttribute("viewBox", "0 0 100 100");
+function drawCombinedGeometryJigsaw(project, pieces) {
+  els.jigsawBoard.setAttribute("viewBox", "0 0 200 200");
   els.jigsawContainer.classList.add("preview-mode");
-  const defs = els.jigsawBoard.querySelector("defs");
-  defs.innerHTML = "";
-  const previewClass = state.revealed ? "generated-preview-image revealed" : "generated-preview-image hidden-reveal";
+  const complete = pieces.every((piece) => piece.status === "printed");
+  const svg = renderExtrudedOutlineSvg({
+    outline: project.viewerGeometry.combined.outline,
+    bounds: project.viewerGeometry.bounds || boundsForOutline(project.viewerGeometry.combined.outline),
+    width: 200,
+    height: 200,
+    complete,
+    revealed: state.revealed,
+    depthScale: 0.85,
+    imageHref: state.revealed ? project.assets?.preview : "",
+    topPattern: !state.revealed
+  });
+  els.jigsawPiecesGroup.innerHTML = svg
+    .replace(/^<svg[^>]*>/, "")
+    .replace(/<\/svg>$/, "");
+}
 
-  els.jigsawPiecesGroup.innerHTML = `
-    <image href="${escapeHtml(project.assets.preview)}" x="0" y="0" width="100" height="100" preserveAspectRatio="xMidYMid meet" class="${previewClass}" />
-    ${state.revealed ? "" : '<rect x="0" y="0" width="100" height="100" rx="5" class="generated-preview-veil" />'}
+function renderExtrudedOutlineSvg({
+  outline,
+  bounds,
+  width,
+  height,
+  complete,
+  revealed,
+  depthScale = 1,
+  imageHref = "",
+  topPattern = false
+}) {
+  const prefix = `geom-${Math.floor(Math.random() * 1e9)}`;
+  const mapped = mapOutlineToViewBox(outline, bounds, width, height);
+  const path = outlinePath(mapped.points);
+  const rad = (theta * Math.PI) / 180;
+  const dxVec = depth * depthScale * Math.cos(rad);
+  const dyVec = depth * depthScale * Math.sin(rad);
+  const topFill = complete ? "#5DCAA5" : "#FAC775";
+  const topStroke = complete ? "#84e6c4" : "#ffdba3";
+  const mutedFill = revealed ? topFill : "#56615b";
+  const mutedStroke = revealed ? topStroke : "rgba(255,255,255,0.22)";
+  const layerCount = 14;
+  let layers = "";
+
+  for (let i = layerCount; i >= 1; i -= 1) {
+    const ratio = i / layerCount;
+    const fill = complete
+      ? `hsl(161, ${64 + ratio * 10}%, ${22 - ratio * 12}%)`
+      : `hsl(36, ${78 + ratio * 8}%, ${31 - ratio * 18}%)`;
+    const hiddenFill = `hsl(150, 8%, ${20 - ratio * 8}%)`;
+    layers += `
+      <g transform="translate(${dxVec * ratio}, ${dyVec * ratio})">
+        <path d="${path}" fill="${revealed ? fill : hiddenFill}" stroke="${revealed ? fill : hiddenFill}" stroke-width="1" />
+      </g>
+    `;
+  }
+
+  const pattern = topPattern ? `
+    <g clip-path="url(#${prefix}-clip)">
+      <circle cx="${mapped.cx}" cy="${mapped.cy}" r="${mapped.size * 0.16}" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="1.4" />
+      <circle cx="${mapped.cx}" cy="${mapped.cy}" r="${mapped.size * 0.29}" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="1.4" />
+      <circle cx="${mapped.cx}" cy="${mapped.cy}" r="${mapped.size * 0.42}" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
+      <line x1="${mapped.cx - mapped.size * 0.36}" y1="${mapped.cy}" x2="${mapped.cx + mapped.size * 0.36}" y2="${mapped.cy}" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
+      <line x1="${mapped.cx}" y1="${mapped.cy - mapped.size * 0.36}" x2="${mapped.cx}" y2="${mapped.cy + mapped.size * 0.36}" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
+    </g>
+  ` : "";
+
+  const imageLayer = imageHref ? `
+    <image href="${escapeHtml(imageHref)}" x="${mapped.imageX}" y="${mapped.imageY}" width="${mapped.imageSize}" height="${mapped.imageSize}" preserveAspectRatio="xMidYMid meet" clip-path="url(#${prefix}-clip)" class="generated-preview-image revealed" />
+    <path d="${path}" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.2" />
+  ` : `
+    <path d="${path}" fill="${mutedFill}" stroke="${mutedStroke}" stroke-width="1.4" class="viewer-3d-piece-top" />
+    ${pattern}
   `;
+
+  return `
+    <svg viewBox="0 0 ${width} ${height}" width="100%" height="100%" style="overflow: visible;">
+      <defs>
+        <filter id="${prefix}-shadow" x="-20%" y="-20%" width="150%" height="150%">
+          <feGaussianBlur in="SourceAlpha" stdDeviation="6" />
+          <feOffset dx="${dxVec * 1.5}" dy="${dyVec * 1.5}" />
+          <feComponentTransfer><feFuncA type="linear" slope="0.55"/></feComponentTransfer>
+          <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+        <clipPath id="${prefix}-clip"><path d="${path}" /></clipPath>
+      </defs>
+      <path d="${path}" fill="#000" filter="url(#${prefix}-shadow)" opacity="0.55" />
+      ${layers}
+      ${imageLayer}
+    </svg>
+  `;
+}
+
+function mapOutlineToViewBox(outline, bounds, width, height) {
+  const [minX, minY, maxX, maxY] = bounds;
+  const sourceWidth = maxX - minX || 1;
+  const sourceHeight = maxY - minY || 1;
+  const imageSize = Math.min(width, height) * 0.78;
+  const scale = Math.min(imageSize / sourceWidth, imageSize / sourceHeight);
+  const usedWidth = sourceWidth * scale;
+  const usedHeight = sourceHeight * scale;
+  const offsetX = (width - usedWidth) / 2;
+  const offsetY = (height - usedHeight) / 2;
+  const points = outline.map(([x, y]) => [
+    offsetX + (x - minX) * scale,
+    offsetY + (y - minY) * scale
+  ]);
+  return {
+    points,
+    cx: offsetX + usedWidth / 2,
+    cy: offsetY + usedHeight / 2,
+    size: Math.min(usedWidth, usedHeight),
+    imageX: (width - imageSize) / 2,
+    imageY: (height - imageSize) / 2,
+    imageSize
+  };
+}
+
+function boundsForOutline(outline) {
+  const xs = outline.map(([x]) => x);
+  const ys = outline.map(([, y]) => y);
+  return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+}
+
+function outlinePath(points) {
+  return points.map(([x, y], index) => {
+    const command = index === 0 ? "M" : "L";
+    return `${command} ${x.toFixed(2)} ${y.toFixed(2)}`;
+  }).join(" ") + " Z";
 }
 
 function makeJigsawGrid(count) {
@@ -884,36 +1061,43 @@ function getEdgePath(p1, p2, type) {
 }
 
 function setupObliqueDrag() {
-  els.obliqueViewer.addEventListener("mousedown", (event) => {
+  addRotationDragTarget(els.obliqueViewer);
+  addRotationDragTarget(els.jigsawContainer);
+  window.addEventListener("mousemove", (event) => {
+    if (!isDragging) return;
+    theta = (initialTheta + (event.clientX - startX) * 0.8) % 360;
+    drawOblique();
+    if (!els.assemblySection.hidden) drawJigsaw();
+  });
+  window.addEventListener("mouseup", () => {
+    isDragging = false;
+  });
+  window.addEventListener("touchmove", (event) => {
+    if (!isDragging || event.touches.length !== 1) return;
+    theta = (initialTheta + (event.touches[0].clientX - startX) * 0.8) % 360;
+    drawOblique();
+    if (!els.assemblySection.hidden) drawJigsaw();
+    event.preventDefault();
+  }, { passive: false });
+  window.addEventListener("touchend", () => {
+    isDragging = false;
+  });
+}
+
+function addRotationDragTarget(target) {
+  target.addEventListener("mousedown", (event) => {
     isDragging = true;
     startX = event.clientX;
     initialTheta = theta;
     event.preventDefault();
   });
-  window.addEventListener("mousemove", (event) => {
-    if (!isDragging) return;
-    theta = (initialTheta + (event.clientX - startX) * 0.8) % 360;
-    drawOblique();
-  });
-  window.addEventListener("mouseup", () => {
-    isDragging = false;
-  });
-  els.obliqueViewer.addEventListener("touchstart", (event) => {
+  target.addEventListener("touchstart", (event) => {
     if (event.touches.length !== 1) return;
     isDragging = true;
     startX = event.touches[0].clientX;
     initialTheta = theta;
     event.preventDefault();
   }, { passive: false });
-  els.obliqueViewer.addEventListener("touchmove", (event) => {
-    if (!isDragging || event.touches.length !== 1) return;
-    theta = (initialTheta + (event.touches[0].clientX - startX) * 0.8) % 360;
-    drawOblique();
-    event.preventDefault();
-  }, { passive: false });
-  els.obliqueViewer.addEventListener("touchend", () => {
-    isDragging = false;
-  });
 }
 
 function addDays(dateString, days) {
