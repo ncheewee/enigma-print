@@ -1,65 +1,46 @@
 /**
- * Enigma Print — Premium Mobile Dashboard Controller
- * Target: Google Pixel 8 / Mobile Viewports
- * Based on Claude Design Mockup, May 2026.
+ * Enigma Print mobile dashboard.
+ *
+ * This keeps the proven local generation/print flow from the original app:
+ * generated manifests -> 3MF pieces -> local helper slice/package/upload/print.
+ * The view layer uses Gemini's four-screen mobile concept.
  */
 
 const STORAGE_KEY = "enigmaprint.projects.v2";
 const HELPER_URL_KEY = "enigmaprint.helperUrl";
-const BAMBU_EMAIL_KEY = "enigmaprint.bambuEmail";
-const BAMBU_PASSWORD_KEY = "enigmaprint.bambuPassword";
-const BAMBU_SERIAL_KEY = "enigmaprint.bambuSerial";
-const BAMBU_CODE_KEY = "enigmaprint.bambuCode";
+const APP_VERSION = "v0.5.0-mobile";
 
-// Print phases for the progress modal - Alternative A (Cloud-to-Cloud)
 const PRINT_PHASES = [
-  { key: "download", label: "Download G-code from GitHub", percent: 15 },
-  { key: "auth", label: "Authenticate with Bambu Cloud", percent: 35 },
-  { key: "slot", label: "Request AWS S3 upload slot", percent: 55 },
-  { key: "upload", label: "Stream G-code to S3 Storage", percent: 75 },
-  { key: "send", label: "Publish Cloud MQTT print job", percent: 90 },
-  { key: "done", label: "Printer received print job!", percent: 100 }
+  { key: "config", label: "Load printer settings", percent: 8 },
+  { key: "slice", label: "Slice 3MF to G-code", percent: 28 },
+  { key: "package", label: "Package printer project", percent: 50 },
+  { key: "upload", label: "Upload to A1 mini", percent: 76 },
+  { key: "send", label: "Send AMS-off print command", percent: 92 },
+  { key: "done", label: "Printer accepted job", percent: 100 }
 ];
 
-let state = {
-  projects: [],
-  activeProject: null,
-  selectedDay: 1, // 1-indexed
-  helperUrl: "http://127.0.0.1:4777",
-  bambuEmail: "",
-  bambuPassword: "",
-  bambuSerial: "",
-  bambuCode: "",
-  revealed: false
-};
-
-// 3D Oblique interactive configuration
-let theta = 45; // rotation angle
-let depth = 14; // extrusion thickness
-let isDragging = false;
-let startX = 0;
-let initialTheta = 45;
-
-// DOM Elements
 const els = {
   projectSub: document.querySelector("#projectSub"),
   settingsButton: document.querySelector("#settingsButton"),
   settingsDialog: document.querySelector("#settingsDialog"),
   settingsForm: document.querySelector("#settingsForm"),
   helperUrlInput: document.querySelector("#helperUrlInput"),
-  bambuEmailInput: document.querySelector("#bambuEmailInput"),
-  bambuPasswordInput: document.querySelector("#bambuPasswordInput"),
-  bambuSerialInput: document.querySelector("#bambuSerialInput"),
   pingDot: document.querySelector("#pingDot"),
   pingStatusMsg: document.querySelector("#pingStatusMsg"),
-  saveSettingsBtn: document.querySelector("#saveSettingsBtn"),
   cancelSettingsBtn: document.querySelector("#cancelSettingsBtn"),
-  
-  inlineVerifyContainer: document.querySelector("#inlineVerifyContainer"),
-  inlineVerifyForm: document.querySelector("#inlineVerifyForm"),
-  inlineVerifyInput: document.querySelector("#inlineVerifyInput"),
-  inlineVerifyCancelBtn: document.querySelector("#inlineVerifyCancelBtn"),
-  
+  projectList: document.querySelector("#projectList"),
+  newProjectButton: document.querySelector("#newProjectButton"),
+  importButton: document.querySelector("#importButton"),
+  importInput: document.querySelector("#importInput"),
+  exportButton: document.querySelector("#exportButton"),
+  resetButton: document.querySelector("#resetButton"),
+  projectDialog: document.querySelector("#projectDialog"),
+  projectForm: document.querySelector("#projectForm"),
+  nameInput: document.querySelector("#nameInput"),
+  hintInput: document.querySelector("#hintInput"),
+  piecesInput: document.querySelector("#piecesInput"),
+  startInput: document.querySelector("#startInput"),
+
   obliqueViewer: document.querySelector("#obliqueViewer"),
   completionBadge: document.querySelector("#completionBadge"),
   prevDayButton: document.querySelector("#prevDayButton"),
@@ -67,24 +48,24 @@ const els = {
   pieceDayLabel: document.querySelector("#pieceDayLabel"),
   pieceNameLabel: document.querySelector("#pieceNameLabel"),
   progressStrip: document.querySelector("#progressStrip"),
-  
   actionPanel: document.querySelector("#actionPanel"),
   printCta: document.querySelector("#printCta"),
   printedChip: document.querySelector("#printedChip"),
   printedTimeLabel: document.querySelector("#printedTimeLabel"),
-  
   statTime: document.querySelector("#statTime"),
   statFilament: document.querySelector("#statFilament"),
   statStatus: document.querySelector("#statStatus"),
-  
+
   focusSection: document.querySelector("#focusSection"),
   assemblySection: document.querySelector("#assemblySection"),
+  jigsawBoard: document.querySelector("#jigsawBoard"),
+  jigsawContainer: document.querySelector(".jigsaw-container"),
   jigsawPiecesGroup: document.querySelector("#jigsawPiecesGroup"),
   revealLockBox: document.querySelector("#revealLockBox"),
   revealChip: document.querySelector("#revealChip"),
   hideRevealBtn: document.querySelector("#hideRevealBtn"),
   backToTodayBtn: document.querySelector("#backToTodayBtn"),
-  
+
   printProgressDialog: document.querySelector("#printProgressDialog"),
   progressTitle: document.querySelector("#progressTitle"),
   progressPercent: document.querySelector("#progressPercent"),
@@ -94,964 +75,113 @@ const els = {
   progressCloseButton: document.querySelector("#progressCloseButton")
 };
 
-// --- BOOTSTRAP ---
+let state = {
+  projects: [],
+  selectedProjectId: null,
+  selectedDay: 1,
+  helperUrl: "http://127.0.0.1:4777",
+  revealed: false
+};
+
+let theta = 45;
+let depth = 14;
+let isDragging = false;
+let startX = 0;
+let initialTheta = 45;
+let progressTimer = null;
+let currentPhaseIndex = 0;
 
 async function bootstrap() {
-  // Load helper URL configuration
-  const savedUrl = localStorage.getItem(HELPER_URL_KEY);
-  if (savedUrl) {
-    state.helperUrl = savedUrl;
-  }
+  state.helperUrl = localStorage.getItem(HELPER_URL_KEY) || state.helperUrl;
   els.helperUrlInput.value = state.helperUrl;
+  els.startInput.value = new Date().toISOString().slice(0, 10);
 
-  // Load Bambu Cloud Credentials
-  state.bambuEmail = localStorage.getItem(BAMBU_EMAIL_KEY) || "";
-  state.bambuPassword = localStorage.getItem(BAMBU_PASSWORD_KEY) || "";
-  state.bambuSerial = localStorage.getItem(BAMBU_SERIAL_KEY) || "";
-
-  if (els.bambuEmailInput) els.bambuEmailInput.value = state.bambuEmail;
-  if (els.bambuPasswordInput) els.bambuPasswordInput.value = state.bambuPassword;
-  if (els.bambuSerialInput) els.bambuSerialInput.value = state.bambuSerial;
-
-  state.bambuCode = localStorage.getItem(BAMBU_CODE_KEY) || "";
-
-  // Load projects from local storage first
   state.projects = loadProjectsFromStorage();
-
-  // Load latest manifests from projects/index.json
   await loadPublishedProjects();
-
-  // Find active project: choose the one marked "current", or fall back to the first active/generated
-  state.activeProject = state.projects.find(p => p.status === "current") || 
-                        state.projects.find(p => p.status === "active") || 
-                        state.projects[0] || null;
-
-  if (state.activeProject) {
-    // Default to the first unprinted day, or if all printed, default to the last day
-    const nextPieceIndex = state.activeProject.pieces.findIndex(p => p.status !== "printed");
-    state.selectedDay = nextPieceIndex !== -1 ? nextPieceIndex + 1 : state.activeProject.pieces.length;
-  }
+  state.selectedProjectId = state.projects[0]?.id || null;
+  setSelectedDayToNextPrint();
 
   attachEvents();
   updateUI();
   checkHelperConnection();
 }
 
-// --- STATE MANAGEMENT ---
-
-function loadProjectsFromStorage() {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) {
-    try {
-      return JSON.parse(saved);
-    } catch {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-  }
-  return [];
-}
-
-async function loadPublishedProjects() {
-  try {
-    const response = await fetch("projects/index.json", { cache: "no-store" });
-    if (!response.ok) return;
-    const data = await response.json();
-    if (!Array.isArray(data.projects)) return;
-
-    const imported = data.projects.map(normalizeProjectManifest);
-    
-    // Merge remote manifests with local states
-    const localProjects = new Map(state.projects.map(p => [p.id, p]));
-    
-    for (const project of imported) {
-      if (localProjects.has(project.id)) {
-        const local = localProjects.get(project.id);
-        // Preserve printed statuses
-        project.pieces.forEach((p, idx) => {
-          if (local.pieces[idx] && local.pieces[idx].status === "printed") {
-            p.status = "printed";
-            p.printedAt = local.pieces[idx].printedAt;
-          }
-        });
-        project.updatedAt = local.updatedAt;
-      }
-      localProjects.set(project.id, project);
-    }
-    
-    state.projects = Array.from(localProjects.values());
-    saveProjectsToStorage();
-  } catch (err) {
-    console.warn("Could not load published projects list:", err);
-  }
-}
-
-function saveProjectsToStorage() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.projects));
-}
-
-function normalizeProjectManifest(manifest) {
-  const slug = manifest.slug || manifest.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-  return {
-    id: manifest.id || slug,
-    name: manifest.name,
-    slug,
-    status: manifest.status || "generated",
-    summary: manifest.summary || "Puzzle week.",
-    targetPrinter: manifest.targetPrinter || "Bambu Lab A1 mini",
-    createdAt: manifest.createdAt || new Date().toISOString(),
-    updatedAt: manifest.updatedAt || new Date().toISOString(),
-    assets: manifest.assets || {},
-    files: manifest.files || [],
-    pieces: manifest.pieces.map((piece, index) => ({
-      id: piece.id || `${slug}-${index + 1}`,
-      day: piece.day || index + 1,
-      name: piece.name || `Piece ${index + 1}`,
-      filename: piece.filename || `piece-${String(index + 1).padStart(2, "0")}.3mf`,
-      path: piece.path || piece.url || "",
-      gcode3mfPath: `generated/sliced/${slug}/piece-${String(index + 1).padStart(2, "0")}.gcode.3mf`,
-      scheduledFor: piece.scheduledFor || new Date().toISOString().slice(0, 10),
-      status: piece.status || "pending",
-      printedAt: piece.printedAt || null,
-      note: piece.note || "Bambu-ready puzzle slab."
-    }))
-  };
-}
-
-// --- NETWORK HELPER LINK ---
-
-async function checkHelperConnection() {
-  updatePingStatus("pending", "Checking connection...");
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
-    
-    const response = await fetch(`${state.helperUrl}/health`, { 
-      method: "GET",
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-    
-    if (response.ok) {
-      updatePingStatus("success", "Helper is active & connected!");
-    } else {
-      updatePingStatus("failed", "Helper returned error status.");
-    }
-  } catch (err) {
-    updatePingStatus("failed", "Cannot reach helper. Check LAN IP.");
-  }
-}
-
-function updatePingStatus(type, message) {
-  els.pingDot.className = `status-dot ping-${type}`;
-  els.pingStatusMsg.textContent = message;
-}
-
-// --- OBlique 3D VIEWER SVG DRAWING ---
-
-/**
- * Builds a Snug fit interlocking puzzle piece curve using cubic bezier curves.
- * Creates a unique jigsaw shape clockwise starting at top-left.
- */
-function getPuzzlePiecePath(p1, p2, p3, p4, topType, rightType, bottomType, leftType) {
-  let path = `M ${p1.x} ${p1.y}`;
-  path += getEdgePath(p1, p2, topType);
-  path += getEdgePath(p2, p3, rightType);
-  path += getEdgePath(p3, p4, bottomType);
-  path += getEdgePath(p4, p1, leftType);
-  path += " Z";
-  return path;
-}
-
-function getEdgePath(p1, p2, type) {
-  const dx = p2.x - p1.x;
-  const dy = p2.y - p1.y;
-  if (type === 0) {
-    return ` L ${p2.x} ${p2.y}`;
-  }
-  
-  const len = Math.hypot(dx, dy);
-  const ux = dx / len;
-  const uy = dy / len;
-  
-  // Perpendicular vector pointing outwards fromclockwise path
-  const px = uy;
-  const py = -ux;
-  
-  const h = len * 0.18 * type; // Height/depth of tab (positive = out, negative = in)
-  
-  // Bezier control points defining a smooth puzzle bulb tab
-  const c1x = p1.x + dx * 0.35 - px * (h * 0.1);
-  const c1y = p1.y + dy * 0.35 - py * (h * 0.1);
-  
-  const n1x = p1.x + dx * 0.4 - px * (h * 0.2);
-  const n1y = p1.y + dy * 0.4 - py * (h * 0.2);
-  
-  const b1x = p1.x + dx * 0.3 + px * h;
-  const b1y = p1.y + dy * 0.3 + py * h;
-  
-  const m1x = p1.x + dx * 0.45 + px * h;
-  const m1y = p1.y + dy * 0.45 + py * h;
-  
-  const m2x = p1.x + dx * 0.55 + px * h;
-  const m2y = p1.y + dy * 0.55 + py * h;
-  
-  const b2x = p1.x + dx * 0.7 + px * h;
-  const b2y = p1.y + dy * 0.7 + py * h;
-  
-  const n2x = p1.x + dx * 0.6 - px * (h * 0.2);
-  const n2y = p1.y + dy * 0.6 - py * (h * 0.2);
-  
-  const c2x = p1.x + dx * 0.65 - px * (h * 0.1);
-  const c2y = p1.y + dy * 0.65 - py * (h * 0.1);
-  
-  return ` C ${c1x} ${c1y}, ${n1x} ${n1y}, ${b1x} ${b1y}` +
-         ` C ${m1x} ${m1y}, ${m2x} ${m2y}, ${b2x} ${b2y}` +
-         ` C ${n2x} ${n2y}, ${c2x} ${c2y}, ${p2.x} ${p2.y}`;
-}
-
-// Draw the 3D Oblique piece slab
-function drawOblique() {
-  if (!state.activeProject) return;
-  
-  const piece = state.activeProject.pieces[state.selectedDay - 1];
-  const isComplete = piece.status === "printed";
-  const isProjectComplete = state.activeProject.pieces.every(p => p.status === "printed");
-  
-  // Calculate Oblique vector offsets from active drag angles
-  const rad = (theta * Math.PI) / 180;
-  const dxVec = depth * Math.cos(rad);
-  const dyVec = depth * Math.sin(rad);
-  
-  // Generate deterministic tab/notch shapes depending on the day
-  const d = piece.day;
-  const topType = (d % 3) - 1;
-  const rightType = ((d + 1) % 3) - 1;
-  const bottomType = ((d + 2) % 3) - 1;
-  const leftType = ((d + 3) % 3) - 1;
-  
-  // Set dimensions for the 2D bounding template centered inside a 200x200 canvas
-  const p1 = { x: 55, y: 55 };
-  const p2 = { x: 145, y: 55 };
-  const p3 = { x: 145, y: 145 };
-  const p4 = { x: 55, y: 145 };
-  
-  const path = getPuzzlePiecePath(p1, p2, p3, p4, topType, rightType, bottomType, leftType);
-  
-  // Dynamic color ramp mapping
-  const baseTopFill = isComplete ? "#5DCAA5" : "#FAC775";
-  const baseTopStroke = isComplete ? "#84e6c4" : "#ffdba3";
-  
-  // SVG Generation using layered extrusion (L=14 layers)
-  let svgContent = `
-    <svg viewBox="0 0 200 200" width="100%" height="100%" style="overflow: visible;">
-      <defs>
-        <!-- Shadow Blur filter -->
-        <filter id="shadowBlur" x="-20%" y="-20%" width="150%" height="150%">
-          <feGaussianBlur in="SourceAlpha" stdDeviation="6" />
-          <feOffset dx="${dxVec * 1.5}" dy="${dyVec * 1.5}" />
-          <feComponentTransfer><feFuncA type="linear" slope="0.65"/></feComponentTransfer>
-          <feMerge>
-            <feMergeNode />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-        <clipPath id="topFaceClip">
-          <path d="${path}" />
-        </clipPath>
-      </defs>
-  `;
-  
-  // 1. Draw blurred projection drop-shadow
-  svgContent += `
-    <path d="${path}" fill="#000" filter="url(#shadowBlur)" style="opacity: 0.6; mix-blend-mode: multiply;" />
-  `;
-  
-  // 2. Draw 3D side layers (layered extrusion with plastic gradient shading)
-  const layerCount = 14;
-  for (let i = layerCount; i >= 1; i--) {
-    const ratio = i / layerCount;
-    const tx = dxVec * ratio;
-    const ty = dyVec * ratio;
-    
-    // Get HSL shaded plastic step
-    let fill = "";
-    if (isComplete) {
-      fill = `hsl(161, ${69 + ratio * 10}%, ${24 - ratio * 15}%)`;
-    } else {
-      fill = `hsl(36, ${86 + ratio * 10}%, ${34 - ratio * 20}%)`;
-    }
-    
-    svgContent += `
-      <g transform="translate(${tx}, ${ty})">
-        <path d="${path}" fill="${fill}" stroke="${fill}" stroke-width="1" />
-      </g>
-    `;
-  }
-  
-  // 3. Draw top face plate at (0, 0)
-  svgContent += `
-    <g transform="translate(0, 0)">
-      <!-- Top surface base color -->
-      <path d="${path}" fill="${baseTopFill}" stroke="${baseTopStroke}" stroke-width="1.2" class="viewer-3d-piece-top" />
-      
-      <!-- Tactile bas-relief rings inside the clip path -->
-      <g clip-path="url(#topFaceClip)">
-        <circle cx="100" cy="100" r="18" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1.5" />
-        <circle cx="100" cy="100" r="36" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1.5" />
-        <circle cx="100" cy="100" r="54" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1.5" />
-        <circle cx="100" cy="100" r="72" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1.5" />
-        <circle cx="100" cy="100" r="90" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
-        <line x1="55" y1="100" x2="145" y2="100" stroke="rgba(255,255,255,0.15)" stroke-width="1" />
-        <line x1="100" y1="55" x2="100" y2="145" stroke="rgba(255,255,255,0.15)" stroke-width="1" />
-      </g>
-    </g>
-  `;
-  
-  // 4. Print celebration confetti overlay if the whole week is complete!
-  if (isProjectComplete) {
-    const confettiColors = ["#EF9F27", "#FAC775", "#D85A30", "#1D9E75", "#5DCAA5", "#E1F5EE"];
-    for (let i = 0; i < 15; i++) {
-      const cx = 30 + Math.sin(i * 3) * 60 + 70;
-      const cy = 20 + Math.cos(i * 1.7) * 60 + 70;
-      const r = 2.5 + (i % 3);
-      const fill = confettiColors[i % confettiColors.length];
-      const rot = i * 25;
-      svgContent += `
-        <circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" style="opacity: 0.85; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.35));" transform="rotate(${rot} ${cx} ${cy})" />
-      `;
-    }
-  }
-  
-  svgContent += `</svg>`;
-  els.obliqueViewer.innerHTML = svgContent;
-  
-  // Set badge layout status
-  els.completionBadge.textContent = isProjectComplete 
-    ? `${state.activeProject.pieces.length}/${state.activeProject.pieces.length} Complete`
-    : `Day ${piece.day}`;
-  
-  if (isComplete) {
-    els.completionBadge.classList.add("complete");
-  } else {
-    els.completionBadge.classList.remove("complete");
-  }
-}
-
-// --- INTERACTIVE DRAG TO ROTATE ACTION ---
-
-function setupObliqueDrag() {
-  els.obliqueViewer.addEventListener("mousedown", (e) => {
-    isDragging = true;
-    startX = e.clientX;
-    initialTheta = theta;
-    e.preventDefault();
-  });
-
-  window.addEventListener("mousemove", (e) => {
-    if (!isDragging) return;
-    const deltaX = e.clientX - startX;
-    theta = (initialTheta + deltaX * 0.8) % 360;
-    drawOblique();
-  });
-
-  window.addEventListener("mouseup", () => {
-    isDragging = false;
-  });
-
-  // Touch Support for phone browsers (Pixel 8 optimization)
-  els.obliqueViewer.addEventListener("touchstart", (e) => {
-    if (e.touches.length !== 1) return;
-    isDragging = true;
-    startX = e.touches[0].clientX;
-    initialTheta = theta;
-    e.preventDefault();
-  }, { passive: false });
-
-  els.obliqueViewer.addEventListener("touchmove", (e) => {
-    if (!isDragging || e.touches.length !== 1) return;
-    const deltaX = e.touches[0].clientX - startX;
-    theta = (initialTheta + deltaX * 0.8) % 360;
-    drawOblique();
-    e.preventDefault();
-  }, { passive: false });
-
-  els.obliqueViewer.addEventListener("touchend", () => {
-    isDragging = false;
-  });
-}
-
-// --- INTERLOCKING JIGSAW BOARD GENERATOR ---
-
-function drawJigsaw() {
-  if (!state.activeProject) return;
-  const pieces = state.activeProject.pieces;
-  const count = pieces.length;
-  const imageSource = state.activeProject.assets?.sourceHidden || 
-                      state.activeProject.assets?.preview || 
-                      "";
-
-  els.jigsawPiecesGroup.innerHTML = "";
-  
-  // Generate the pieces' layout and coordinate system dynamically
-  // Supports N = 4 pieces (2x2 grid) or N = 7 pieces (3+3+1 grid)
-  const grid = [];
-  const width = 140;
-  const height = 84;
-  
-  if (count === 4) {
-    // 2x2 Snug Grid
-    const w = 70;
-    const h = 42;
-    
-    // Define the grid vertices for clean overlap matching
-    const v = [
-      [{x: 0, y: 0},  {x: 70, y: 0},  {x: 140, y: 0}],
-      [{x: 0, y: 42}, {x: 70, y: 42}, {x: 140, y: 42}],
-      [{x: 0, y: 84}, {x: 70, y: 84}, {x: 140, y: 84}]
-    ];
-    
-    // Boundary tab specifications: 1 points out, -1 points in, 0 flat
-    // [top, right, bottom, left]
-    grid.push({
-      p: [v[0][0], v[0][1], v[1][1], v[1][0]], // Piece 1
-      t: [0, 1, -1, 0], center: {x: 35, y: 21}
-    });
-    grid.push({
-      p: [v[0][1], v[0][2], v[1][2], v[1][1]], // Piece 2
-      t: [0, 0, 1, -1], center: {x: 105, y: 21}
-    });
-    grid.push({
-      p: [v[1][0], v[1][1], v[2][1], v[2][0]], // Piece 3
-      t: [1, -1, 0, 0], center: {x: 35, y: 63}
-    });
-    grid.push({
-      p: [v[1][1], v[1][2], v[2][2], v[2][1]], // Piece 4
-      t: [-1, 0, 0, 1], center: {x: 105, y: 63}
-    });
-  } else {
-    // Default: 7-Piece layout (3+3+1 grid layout)
-    // Row heights: 28, 28, 28 = 84
-    // Vertices coordinates
-    const v = {
-      r0: [{x: 0, y: 0},   {x: 46.6, y: 0},  {x: 93.3, y: 0},  {x: 140, y: 0}],
-      r1: [{x: 0, y: 28},  {x: 46.6, y: 28}, {x: 93.3, y: 28}, {x: 140, y: 28}],
-      r2: [{x: 0, y: 56},  {x: 46.6, y: 56}, {x: 93.3, y: 56}, {x: 140, y: 56}],
-      r3: [{x: 0, y: 84},  {x: 35, y: 84},   {x: 105, y: 84},  {x: 140, y: 84}]
-    };
-    
-    // Piece definitions with custom vertices to shape a snug bottom keystone
-    // Piece 1: R1-C1
-    grid.push({
-      p: [v.r0[0], v.r0[1], v.r1[1], v.r1[0]],
-      t: [0, 1, -1, 0], center: {x: 23.3, y: 14}
-    });
-    // Piece 2: R1-C2
-    grid.push({
-      p: [v.r0[1], v.r0[2], v.r1[2], v.r1[1]],
-      t: [0, 1, -1, -1], center: {x: 70, y: 14}
-    });
-    // Piece 3: R1-C3
-    grid.push({
-      p: [v.r0[2], v.r0[3], v.r1[3], v.r1[2]],
-      t: [0, 0, -1, -1], center: {x: 116.6, y: 14}
-    });
-    // Piece 4: R2-C1 + wings down left
-    grid.push({
-      p: [v.r1[0], v.r1[1], v.r2[1], {x: 35, y: 56}, v.r3[1], v.r3[0]],
-      t: [1, -1, 0, -1, 0, 0], center: {x: 21, y: 48}
-    });
-    // Piece 5: R2-C2
-    grid.push({
-      p: [v.r1[1], v.r1[2], v.r2[2], v.r2[1]],
-      t: [1, 1, -1, 1], center: {x: 70, y: 42}
-    });
-    // Piece 6: R2-C3 + wings down right
-    grid.push({
-      p: [v.r1[2], v.r1[3], v.r3[3], v.r3[2], {x: 105, y: 56}, v.r2[2]],
-      t: [1, 0, 0, 1, 0, -1], center: {x: 119, y: 48}
-    });
-    // Piece 7 (Keystone Center Bottom):
-    grid.push({
-      p: [{x: 35, y: 56}, {x: 105, y: 56}, v.r3[2], v.r3[1]],
-      t: [1, -1, 0, 1], center: {x: 70, y: 70}
-    });
-  }
-
-  // Draw each segment and create clipped images
-  let svgOut = "";
-  let defsOut = "";
-
-  grid.forEach((item, index) => {
-    const p = pieces[index];
-    const isPrinted = p && p.status === "printed";
-    const isToday = p && p.status !== "printed" && index === (state.selectedDay - 1);
-    
-    // Construct clockwise jigsaw outline
-    let dStr = `M ${item.p[0].x} ${item.p[0].y}`;
-    for (let i = 0; i < item.p.length; i++) {
-      const nextIdx = (i + 1) % item.p.length;
-      const type = item.t[i] || 0;
-      dStr += getEdgePath(item.p[i], item.p[nextIdx], type);
-    }
-    dStr += " Z";
-
-    // Set up unique clip-paths for each piece
-    const clipId = `jigsaw-clip-${index}`;
-    defsOut += `
-      <clipPath id="${clipId}">
-        <path d="${dStr}" />
-      </clipPath>
-    `;
-
-    // Visual styling rules for different states
-    let pathClass = "";
-    let textClass = "";
-    let textFill = "";
-    
-    if (isPrinted) {
-      pathClass = "jigsaw-piece-unrevealed";
-      textClass = "jigsaw-piece-unrevealed-text";
-    } else if (isToday) {
-      pathClass = "jigsaw-piece-keystone";
-      textClass = "jigsaw-piece-keystone-text";
-    } else {
-      pathClass = "jigsaw-piece-path"; // pending/default
-    }
-
-    if (state.revealed) {
-      // 1. Reveal State: flood each piece with dynamic clipped AI hidden image
-      svgOut += `
-        <image href="${imageSource}" x="0" y="0" width="${width}" height="${height}" clip-path="url(#${clipId})" class="jigsaw-piece-path jigsaw-piece-revealed" preserveAspectRatio="none" />
-        <path d="${dStr}" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="0.55" class="jigsaw-piece-path jigsaw-piece-revealed" />
-        <text x="${item.center.x}" y="${item.center.y}" class="jigsaw-piece-text jigsaw-piece-revealed-text">${index + 1}</text>
-      `;
-    } else {
-      // 2. Unrevealed State: display vector solids representing today/printed states
-      let fillAttr = "";
-      let strokeAttr = "";
-      let strokeWidth = "";
-      
-      if (isPrinted) {
-        fillAttr = "var(--teal-400)";
-        strokeAttr = "rgba(255, 255, 255, 0.15)";
-        strokeWidth = "0.6";
-        textFill = "#ffffff";
-      } else if (isToday) {
-        fillAttr = "rgba(239, 159, 39, 0.22)";
-        strokeAttr = "var(--amber-400)";
-        strokeWidth = "0.85";
-        textFill = "var(--amber-100)";
-      } else {
-        fillAttr = "#1a221d";
-        strokeAttr = "rgba(255,255,255,0.04)";
-        strokeWidth = "0.5";
-        textFill = "var(--ink-muted)";
-      }
-
-      svgOut += `
-        <path d="${dStr}" fill="${fillAttr}" stroke="${strokeAttr}" stroke-width="${strokeWidth}" class="${pathClass}" />
-        <text x="${item.center.x}" y="${item.center.y}" fill="${textFill}" class="jigsaw-piece-text ${textClass}">${index + 1}</text>
-      `;
-    }
-  });
-
-  // Inject defs and path nodes to SVG
-  const defsContainer = els.jigsawBoard.querySelector("defs");
-  if (defsContainer) {
-    defsContainer.innerHTML = `<clipPath id="revealClip"><rect x="0" y="0" width="140" height="84" rx="4" /></clipPath>` + defsOut;
-  }
-  els.jigsawPiecesGroup.innerHTML = svgOut;
-}
-
-// --- DYNAMIC DASHBOARD DATA UPDATER ---
-
-function updateUI() {
-  if (!state.activeProject) return;
-
-  const project = state.activeProject;
-  const piece = project.pieces[state.selectedDay - 1];
-  const isComplete = piece.status === "printed";
-  const isProjectComplete = project.pieces.every(p => p.status === "printed");
-
-  // Header and title info
-  els.projectSub.textContent = `Bambu Lab A1 mini · Week ${project.name}`;
-  els.pieceDayLabel.textContent = `DAY ${piece.day} OF ${project.pieces.length}`;
-  els.pieceNameLabel.textContent = piece.name;
-
-  // Print statistics mapping
-  els.statTime.textContent = isComplete ? "24m" : "28m";
-  els.statFilament.textContent = isComplete ? "12g" : "14g";
-  els.statStatus.textContent = piece.status.toUpperCase();
-  if (isComplete) {
-    els.statStatus.style.color = "var(--teal-200)";
-  } else {
-    els.statStatus.style.color = "var(--amber-400)";
-  }
-
-  // Draw Oblique 3D puzzle block
-  drawOblique();
-
-  // Progress dot timeline indicators
-  els.progressStrip.innerHTML = project.pieces.map((p, idx) => {
-    let dotClass = "strip-dot";
-    if (idx === state.selectedDay - 1) {
-      dotClass += " active";
-    } else if (p.status === "printed") {
-      dotClass += " complete";
-    } else {
-      dotClass += " pending";
-    }
-    return `<button class="${dotClass}" data-day="${idx + 1}" type="button" aria-label="Go to day ${idx + 1}"></button>`;
-  }).join("");
-
-  // Action CTA controls
-  if (isProjectComplete) {
-    // Screen 3: Confetti week complete celebration
-    els.printCta.hidden = false;
-    els.printCta.className = "amber-btn";
-    els.printCta.innerHTML = `<span class="btn-icon">🧩</span> Piece it together →`;
-    els.printedChip.hidden = true;
-  } else if (isComplete) {
-    // Screen 2: Already printed past record
-    els.printCta.hidden = true;
-    els.printedChip.hidden = false;
-    if (piece.printedAt) {
-      const dt = new Date(piece.printedAt);
-      els.printedTimeLabel.textContent = dt.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-    } else {
-      els.printedTimeLabel.textContent = "Complete";
-    }
-  } else {
-    // Screen 1: Queued active slice
-    els.printCta.hidden = false;
-    els.printCta.className = "coral-btn";
-    els.printCta.innerHTML = `<span class="btn-icon">⚡</span> Send to A1 mini`;
-    els.printedChip.hidden = true;
-  }
-
-  // Draw updated Jigsaw outline board
-  drawJigsaw();
-}
-
-// --- CLOUD PRINTER COMMANDS (CLOUD BRIDGE) ---
-
-async function triggerPrintJob() {
-  if (!state.activeProject) return;
-  const project = state.activeProject;
-  const piece = project.pieces[state.selectedDay - 1];
-
-  // Verify Bambu Lab credentials
-  if (!state.bambuEmail || !state.bambuPassword || !state.bambuSerial) {
-    alert("Please open Settings (cog icon) and configure your Bambu Lab Cloud credentials first!");
-    els.settingsDialog.showModal();
-    checkHelperConnection();
-    return;
-  }
-
-  const confirmed = window.confirm(`Ready to print ${piece.filename} directly from the cloud via Bambu Lab Cloud?`);
-  if (!confirmed) return;
-
-  // Open the print progress modal
-  startProgressModal(piece);
-
-  // Hide verification container in case it was left open from a prior flow
-  els.inlineVerifyContainer.style.display = "none";
-  els.inlineVerifyInput.value = "";
-
-  await executePrintRequest(piece);
-}
-
-async function executePrintRequest(piece, codeOverride = null) {
-  try {
-    // Resolve absolute URL to the pre-sliced G-code package
-    const absoluteGcodeUrl = new URL(piece.gcode3mfPath, window.location.href).href;
-    console.log("[EnigmaPrint] Target pre-sliced G-code URL:", absoluteGcodeUrl);
-
-    // Use override code if provided, otherwise default to state.bambuCode
-    const currentCode = codeOverride !== null ? codeOverride : state.bambuCode;
-
-    const response = await fetch(`${state.helperUrl}/print-piece`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: state.bambuEmail,
-        password: state.bambuPassword,
-        code: currentCode,
-        serialNumber: state.bambuSerial,
-        gcode3mfUrl: absoluteGcodeUrl
-      })
-    });
-
-    let result;
-    try {
-      result = await response.json();
-    } catch (e) {
-      throw new Error("Could not parse JSON response from Cloud Bridge server. Make sure the server URL is correct and online.");
-    }
-
-    if (!response.ok || !result.ok) {
-      // Check if we need verification!
-      if (result.needsVerification) {
-        handleVerificationPrompt(piece);
-        return;
-      }
-
-      const err = new Error(result.message || "Cloud print bridge command failed.");
-      err.stages = result.stages || [];
-      throw err;
-    }
-
-    // Success! Update local manifest to printed state
-    piece.status = "printed";
-    piece.printedAt = new Date().toISOString();
-    saveProjectsToStorage();
-    
-    finishProgressModal(true, `Successfully sent ${piece.filename} to printer!\nYour A1 mini has received the cloud trigger and is now starting to print.`);
-    updateUI();
-  } catch (err) {
-    let customMsg = `Print request failed: ${err.message}`;
-    if (err.message.includes("Failed to fetch")) {
-      customMsg = `⚠️ Connection to Cloud Bridge failed!\n\nThis is usually due to browser Mixed Content blocking: your phone is on HTTPS (GitHub Pages) but your local bridge is HTTP. To solve this:\n1. Test directly from a browser on your Mac at http://127.0.0.1:4777\n2. Or use an HTTPS tunnel (e.g., untun or ngrok) for mobile testing.`;
-    }
-    finishProgressModal(false, customMsg, err.stages || []);
-  }
-}
-
-function handleVerificationPrompt(piece) {
-  // 1. Pause the progress timer to freeze simulation
-  pauseProgressTimer();
-
-  // 2. Set phase to Auth (35%)
-  currentPhaseIndex = 1;
-  const phase = PRINT_PHASES[1];
-  els.progressPercent.textContent = `${phase.percent}%`;
-  els.progressFill.style.width = `${phase.percent}%`;
-  renderStepsList(1, "running");
-  els.progressMessage.textContent = "Verification code required. A 6-digit code has been sent to your email.";
-
-  // 3. Show the inline verification container
-  els.inlineVerifyContainer.style.display = "block";
-  els.inlineVerifyInput.value = "";
-  els.inlineVerifyInput.focus();
-
-  // 4. Set up listeners (with cleanup to prevent memory leaks)
-  let submitHandler;
-  let cancelHandler;
-
-  const cleanupListeners = () => {
-    els.inlineVerifyForm.removeEventListener("submit", submitHandler);
-    els.inlineVerifyCancelBtn.removeEventListener("click", cancelHandler);
-  };
-
-  submitHandler = async (e) => {
-    e.preventDefault();
-    const code = els.inlineVerifyInput.value.trim();
-    if (!code || code.length !== 6 || !/^\d+$/.test(code)) {
-      alert("Please enter a valid 6-digit verification code.");
-      return;
-    }
-
-    cleanupListeners();
-
-    // Hide input and show loader
-    els.inlineVerifyContainer.style.display = "none";
-    els.progressMessage.textContent = "Submitting code and authenticating secure cloud session...";
-    
-    // Save to state and localStorage for persistence/retry
-    state.bambuCode = code;
-    localStorage.setItem(BAMBU_CODE_KEY, code);
-
-    // Resume progress bar simulation
-    resumeProgressTimer();
-
-    // Re-execute request with the new code
-    await executePrintRequest(piece, code);
-  };
-
-  cancelHandler = () => {
-    cleanupListeners();
-    els.inlineVerifyContainer.style.display = "none";
-    finishProgressModal(false, "Print cancelled by user during verification code entry.");
-  };
-
-  els.inlineVerifyForm.addEventListener("submit", submitHandler);
-  els.inlineVerifyCancelBtn.addEventListener("click", cancelHandler);
-}
-
-// --- PROGRESS DIALOG VIEWER CONTROL ---
-
-let progressTimer = null;
-let currentPhaseIndex = 0;
-
-function startProgressModal(piece) {
-  els.progressTitle.textContent = piece.filename;
-  els.progressMessage.textContent = "Contacting Cloud Bridge. Starting print sequence...";
-  els.progressCloseButton.hidden = true;
-  els.progressPercent.textContent = "0%";
-  els.progressFill.style.width = "0%";
-  
-  renderStepsList(0, "running");
-  els.printProgressDialog.showModal();
-
-  currentPhaseIndex = 0;
-  resumeProgressTimer();
-}
-
-function resumeProgressTimer() {
-  if (progressTimer) clearInterval(progressTimer);
-  
-  progressTimer = setInterval(() => {
-    if (currentPhaseIndex < PRINT_PHASES.length - 2) {
-      currentPhaseIndex++;
-      const phase = PRINT_PHASES[currentPhaseIndex];
-      els.progressPercent.textContent = `${phase.percent}%`;
-      els.progressFill.style.width = `${phase.percent}%`;
-      renderStepsList(currentPhaseIndex, "running");
-      els.progressMessage.textContent = getProgressMsg(currentPhaseIndex);
-    }
-  }, 800); // Fast, responsive 800ms interval
-}
-
-function pauseProgressTimer() {
-  if (progressTimer) {
-    clearInterval(progressTimer);
-    progressTimer = null;
-  }
-}
-
-function finishProgressModal(ok, message, stages = []) {
-  pauseProgressTimer();
-  
-  let finalIdx;
-  if (ok) {
-    finalIdx = PRINT_PHASES.length - 1;
-  } else {
-    // Determine the step where the error actually happened from stages list
-    if (stages && stages.length > 0) {
-      const lastStage = stages[stages.length - 1];
-      if (lastStage.includes("MQTT") || lastStage.includes("print command")) {
-        finalIdx = 4;
-      } else if (lastStage.includes("S3") || lastStage.includes("Stream")) {
-        finalIdx = 3;
-      } else if (lastStage.includes("slot") || lastStage.includes("upload")) {
-        finalIdx = 2;
-      } else if (lastStage.includes("preference") || lastStage.includes("Authenticating")) {
-        finalIdx = 1;
-      } else if (lastStage.includes("G-code")) {
-        finalIdx = 0;
-      } else {
-        finalIdx = 1;
-      }
-    } else {
-      // If there are no stages, it's likely a local connection issue (Mixed Content or offline)
-      finalIdx = 1; // Mark auth/connection step as error
-    }
-  }
-  
-  const finalPercent = PRINT_PHASES[finalIdx].percent;
-  
-  els.progressPercent.textContent = `${finalPercent}%`;
-  els.progressFill.style.width = `${finalPercent}%`;
-  renderStepsList(finalIdx, ok ? "done" : "error");
-  
-  els.progressMessage.textContent = message;
-  els.progressCloseButton.hidden = false;
-}
-
-function renderStepsList(activeIndex, status) {
-  els.progressSteps.innerHTML = PRINT_PHASES.map((item, index) => {
-    let stateClass = "pending";
-    if (index < activeIndex || status === "done") {
-      stateClass = "done";
-    } else if (index === activeIndex) {
-      stateClass = status;
-    }
-    return `<li class="${stateClass}"><span></span>${item.label}</li>`;
-  }).join("");
-}
-
-function getProgressMsg(index) {
-  return [
-    "Downloading pre-sliced G-code from GitHub...",
-    "Authenticating secure session with Bambu Lab Cloud...",
-    "Requesting pre-signed AWS S3 upload slots...",
-    "Streaming G-code archive directly to Bambu cloud storage...",
-    "Connecting to Cloud MQTT broker and sending print command..."
-  ][index] || "Processing cloud signals...";
-}
-
-// --- EVENT HANDLERS ---
-
 function attachEvents() {
-  // Settings Trigger
   els.settingsButton.addEventListener("click", () => {
+    renderProjectList();
     els.settingsDialog.showModal();
     checkHelperConnection();
   });
 
-  // Settings Cancel Trigger
-  els.cancelSettingsBtn.addEventListener("click", () => {
-    els.settingsDialog.close();
-  });
+  els.cancelSettingsBtn.addEventListener("click", () => els.settingsDialog.close());
 
-  // Settings Save Form
-  els.settingsForm.addEventListener("submit", (e) => {
-    e.preventDefault();
+  els.settingsForm.addEventListener("submit", (event) => {
+    if (event.submitter?.value === "cancel") return;
+    event.preventDefault();
     state.helperUrl = els.helperUrlInput.value.trim().replace(/\/$/, "");
-    state.bambuEmail = els.bambuEmailInput.value.trim();
-    state.bambuPassword = els.bambuPasswordInput.value.trim();
-    state.bambuSerial = els.bambuSerialInput.value.trim();
-    
     localStorage.setItem(HELPER_URL_KEY, state.helperUrl);
-    localStorage.setItem(BAMBU_EMAIL_KEY, state.bambuEmail);
-    localStorage.setItem(BAMBU_PASSWORD_KEY, state.bambuPassword);
-    localStorage.setItem(BAMBU_SERIAL_KEY, state.bambuSerial);
-    
     els.settingsDialog.close();
     checkHelperConnection();
   });
 
-  // Navigation dots navigation
-  els.progressStrip.addEventListener("click", (e) => {
-    const dot = e.target.closest(".strip-dot");
-    if (!dot) return;
-    state.selectedDay = parseInt(dot.dataset.day, 10);
+  els.newProjectButton.addEventListener("click", () => {
+    els.settingsDialog.close();
+    els.projectDialog.showModal();
+  });
+
+  els.projectForm.addEventListener("submit", (event) => {
+    if (event.submitter?.value === "cancel") return;
+    event.preventDefault();
+    const project = createProjectFromForm(new FormData(els.projectForm));
+    state.projects = [project, ...state.projects.filter((item) => item.id !== project.id)];
+    state.selectedProjectId = project.id;
+    state.selectedDay = 1;
+    saveProjectsToStorage();
+    els.projectForm.reset();
+    els.startInput.value = new Date().toISOString().slice(0, 10);
+    els.projectDialog.close();
     updateUI();
   });
 
-  // Oblique arrow navigation
+  els.importButton.addEventListener("click", () => els.importInput.click());
+  els.importInput.addEventListener("change", importManifest);
+  els.exportButton.addEventListener("click", exportSelectedProject);
+  els.resetButton.addEventListener("click", resetPublishedData);
+
+  els.progressStrip.addEventListener("click", (event) => {
+    const dot = event.target.closest(".strip-dot");
+    if (!dot) return;
+    state.selectedDay = Number(dot.dataset.day);
+    updateUI();
+  });
+
   els.prevDayButton.addEventListener("click", () => {
-    if (state.selectedDay > 1) {
-      state.selectedDay--;
-      updateUI();
-    }
+    if (state.selectedDay <= 1) return;
+    state.selectedDay -= 1;
+    updateUI();
   });
 
   els.nextDayButton.addEventListener("click", () => {
-    if (state.selectedDay < state.activeProject.pieces.length) {
-      state.selectedDay++;
-      updateUI();
-    }
+    const project = getSelectedProject();
+    if (!project || state.selectedDay >= project.pieces.length) return;
+    state.selectedDay += 1;
+    updateUI();
   });
 
-  // Main action CTA
   els.printCta.addEventListener("click", () => {
-    const isProjectComplete = state.activeProject.pieces.every(p => p.status === "printed");
-    if (isProjectComplete) {
-      // Transition to Screen 4 (Assembly Section)
-      els.focusSection.hidden = true;
-      els.assemblySection.hidden = false;
-      state.revealed = false;
-      els.revealLockBox.hidden = false;
-      els.revealChip.hidden = true;
-      drawJigsaw();
+    const project = getSelectedProject();
+    if (!project) {
+      renderProjectList();
+      els.settingsDialog.showModal();
+      return;
+    }
+    if (project.pieces.every((piece) => piece.status === "printed")) {
+      openAssemblyScreen();
     } else {
-      // Trigger slice & print job
       triggerPrintJob();
     }
   });
 
-  // Assembly guide controls
   els.backToTodayBtn.addEventListener("click", () => {
     els.assemblySection.hidden = true;
     els.focusSection.hidden = false;
@@ -1071,13 +201,750 @@ function attachEvents() {
     drawJigsaw();
   });
 
-  els.progressCloseButton.addEventListener("click", () => {
-    els.printProgressDialog.close();
+  els.progressCloseButton.addEventListener("click", () => els.printProgressDialog.close());
+  els.printProgressDialog.addEventListener("cancel", (event) => {
+    if (els.progressCloseButton.hidden) event.preventDefault();
   });
 
-  // Setup Oblique 3D rotation dragging mouse/touch event streams
   setupObliqueDrag();
 }
 
-// Run bootstrap
+function loadProjectsFromStorage() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (!saved) return [];
+  try {
+    const projects = JSON.parse(saved);
+    return Array.isArray(projects) ? projects : [];
+  } catch {
+    localStorage.removeItem(STORAGE_KEY);
+    return [];
+  }
+}
+
+async function loadPublishedProjects() {
+  try {
+    const response = await fetch("projects/index.json", { cache: "no-store" });
+    if (!response.ok) return;
+    const data = await response.json();
+    if (!Array.isArray(data.projects)) return;
+
+    const imported = data.projects.map(normalizeProjectManifest);
+    const existing = new Map(state.projects.map((project) => [project.id, project]));
+    for (const project of imported) {
+      const local = existing.get(project.id);
+      if (local) {
+        project.pieces.forEach((piece, index) => {
+          const localPiece = local.pieces[index];
+          if (localPiece?.status === "printed") {
+            piece.status = "printed";
+            piece.printedAt = localPiece.printedAt;
+          }
+        });
+      }
+      existing.set(project.id, project);
+    }
+
+    state.projects = [
+      ...imported,
+      ...state.projects.filter((project) => !imported.some((item) => item.id === project.id))
+    ];
+    saveProjectsToStorage();
+  } catch {
+    // Opening index.html directly may not expose projects/index.json.
+  }
+}
+
+function saveProjectsToStorage() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.projects));
+}
+
+function getSelectedProject() {
+  return state.projects.find((project) => project.id === state.selectedProjectId) || state.projects[0] || null;
+}
+
+function setSelectedDayToNextPrint() {
+  const project = getSelectedProject();
+  if (!project) {
+    state.selectedDay = 1;
+    return;
+  }
+  const nextIndex = project.pieces.findIndex((piece) => piece.status !== "printed");
+  state.selectedDay = nextIndex === -1 ? project.pieces.length : nextIndex + 1;
+}
+
+function normalizeProjectManifest(manifest) {
+  if (!manifest || typeof manifest !== "object") {
+    throw new Error("Manifest must be a JSON object.");
+  }
+  if (!manifest.name || !Array.isArray(manifest.pieces)) {
+    throw new Error("Manifest needs a name and pieces array.");
+  }
+
+  const slug = manifest.slug || slugify(manifest.name);
+  return {
+    id: manifest.id || slug,
+    name: manifest.name,
+    slug,
+    status: manifest.status || "generated",
+    summary: manifest.summary || "Generated Enigma Print puzzle.",
+    targetPrinter: manifest.targetPrinter || "A1 mini",
+    createdAt: manifest.createdAt || new Date().toISOString(),
+    updatedAt: manifest.updatedAt || new Date().toISOString(),
+    assets: manifest.assets || {},
+    files: Array.isArray(manifest.files) ? manifest.files : [],
+    pieces: manifest.pieces.map((piece, index) => ({
+      id: piece.id || `${slug}-${index + 1}`,
+      day: piece.day || index + 1,
+      name: piece.name || `Piece ${index + 1}`,
+      filename: piece.filename || `piece-${String(index + 1).padStart(2, "0")}.3mf`,
+      path: piece.path || piece.url || "",
+      gcode3mfPath: piece.gcode3mfPath || "",
+      scheduledFor: piece.scheduledFor || addDays(new Date().toISOString().slice(0, 10), index),
+      status: piece.status || "pending",
+      printedAt: piece.printedAt || null,
+      printTimeMinutes: piece.printTimeMinutes || null,
+      filamentWeightG: piece.filamentWeightG || null,
+      note: piece.note || "Generated puzzle piece."
+    }))
+  };
+}
+
+function createProjectFromForm(formData) {
+  const name = String(formData.get("name") || "").trim();
+  const hint = String(formData.get("hint") || "Unknown weekly mystery").trim();
+  const pieceCount = Number(formData.get("pieces") || 7);
+  const startDate = String(formData.get("startDate"));
+  const slug = slugify(name);
+
+  return {
+    id: crypto.randomUUID(),
+    name,
+    slug,
+    status: "active",
+    summary: `A ${pieceCount}-day AI generated puzzle queued from the hint: ${hint}. Generate the 3MF pieces locally, then import the manifest.`,
+    targetPrinter: "A1 mini",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    assets: {},
+    files: [
+      { name: `${slug}.manifest.json`, type: "JSON", description: "Project metadata for generated pieces" },
+      { name: `${slug}-source.png`, type: "PNG", description: "Hidden source image" },
+      { name: `${slug}-plate.3mf`, type: "3MF", description: "Reference plate" }
+    ],
+    pieces: Array.from({ length: pieceCount }, (_, index) => {
+      const day = index + 1;
+      return {
+        id: crypto.randomUUID(),
+        day,
+        name: `Mystery piece ${day}`,
+        filename: `${slug}-day-${String(day).padStart(2, "0")}.3mf`,
+        path: "",
+        scheduledFor: addDays(startDate, index),
+        status: "pending",
+        printedAt: null,
+        note: "Generate this piece locally, import the manifest, then print overnight."
+      };
+    })
+  };
+}
+
+async function importManifest(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    const project = normalizeProjectManifest(JSON.parse(await file.text()));
+    state.projects = [project, ...state.projects.filter((item) => item.id !== project.id)];
+    state.selectedProjectId = project.id;
+    setSelectedDayToNextPrint();
+    saveProjectsToStorage();
+    updateUI();
+  } catch (error) {
+    window.alert(`Could not import manifest: ${error.message}`);
+  } finally {
+    event.target.value = "";
+  }
+}
+
+function exportSelectedProject() {
+  const project = getSelectedProject();
+  if (!project) return;
+  const blob = new Blob([JSON.stringify(project, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${project.slug}.manifest.json`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function resetPublishedData() {
+  localStorage.removeItem(STORAGE_KEY);
+  state.projects = [];
+  loadPublishedProjects().then(() => {
+    state.selectedProjectId = state.projects[0]?.id || null;
+    setSelectedDayToNextPrint();
+    updateUI();
+    renderProjectList();
+  });
+}
+
+function updateUI() {
+  const project = getSelectedProject();
+  if (!project) {
+    renderEmptyState();
+    return;
+  }
+
+  state.selectedProjectId = project.id;
+  state.selectedDay = Math.min(Math.max(state.selectedDay, 1), project.pieces.length);
+  const piece = project.pieces[state.selectedDay - 1];
+  const printedCount = project.pieces.filter((item) => item.status === "printed").length;
+  const isComplete = piece.status === "printed";
+  const isProjectComplete = printedCount === project.pieces.length;
+
+  els.focusSection.hidden = false;
+  els.assemblySection.hidden = true;
+  els.projectSub.textContent = `${project.targetPrinter} · ${project.name}`;
+  els.pieceDayLabel.textContent = `DAY ${piece.day} OF ${project.pieces.length}`;
+  els.pieceNameLabel.textContent = piece.name;
+  els.statTime.textContent = piece.printTimeMinutes ? `${piece.printTimeMinutes}m` : "TBD";
+  els.statFilament.textContent = piece.filamentWeightG ? `${piece.filamentWeightG}g` : "TBD";
+  els.statStatus.textContent = getPieceStatusLabel(piece);
+  els.statStatus.style.color = isComplete ? "var(--teal-200)" : "var(--amber-400)";
+
+  els.prevDayButton.disabled = state.selectedDay <= 1;
+  els.nextDayButton.disabled = state.selectedDay >= project.pieces.length;
+
+  drawOblique();
+  renderProgressStrip(project);
+  renderActionPanel(project, piece, isComplete, isProjectComplete);
+  drawJigsaw();
+  renderProjectList();
+}
+
+function renderEmptyState() {
+  els.projectSub.textContent = `No project loaded · ${APP_VERSION}`;
+  els.pieceDayLabel.textContent = "READY";
+  els.pieceNameLabel.textContent = "Import a generated manifest";
+  els.obliqueViewer.innerHTML = `<div class="empty-viewer">E</div>`;
+  els.completionBadge.textContent = "Empty";
+  els.progressStrip.innerHTML = "";
+  els.printCta.hidden = false;
+  els.printCta.className = "amber-btn";
+  els.printCta.innerHTML = `<span class="btn-icon">+</span> Load puzzle`;
+  els.printedChip.hidden = true;
+  els.statTime.textContent = "--";
+  els.statFilament.textContent = "--";
+  els.statStatus.textContent = "EMPTY";
+}
+
+function renderProjectList() {
+  if (!els.projectList) return;
+  els.projectList.innerHTML = state.projects.map((project) => {
+    const printed = project.pieces.filter((piece) => piece.status === "printed").length;
+    const active = project.id === state.selectedProjectId ? " active" : "";
+    return `
+      <button class="project-picker${active}" type="button" data-project-id="${escapeHtml(project.id)}">
+        <span>
+          <strong>${escapeHtml(project.name)}</strong>
+          <small>${printed}/${project.pieces.length} pieces · ${escapeHtml(getProjectStatus(project))}</small>
+        </span>
+      </button>
+    `;
+  }).join("") || `<p class="dialog-explain">No generated manifests loaded yet.</p>`;
+
+  els.projectList.querySelectorAll("[data-project-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.selectedProjectId = button.dataset.projectId;
+      setSelectedDayToNextPrint();
+      els.settingsDialog.close();
+      updateUI();
+    });
+  });
+}
+
+function renderProgressStrip(project) {
+  els.progressStrip.innerHTML = project.pieces.map((piece, index) => {
+    let dotClass = "strip-dot";
+    if (index === state.selectedDay - 1) dotClass += " active";
+    else if (piece.status === "printed") dotClass += " complete";
+    else dotClass += " pending";
+    return `<button class="${dotClass}" data-day="${index + 1}" type="button" aria-label="Go to day ${index + 1}"></button>`;
+  }).join("");
+}
+
+function renderActionPanel(project, piece, isComplete, isProjectComplete) {
+  if (isProjectComplete) {
+    els.printCta.hidden = false;
+    els.printCta.className = "amber-btn";
+    els.printCta.innerHTML = `<span class="btn-icon">+</span> Piece it together`;
+    els.printedChip.hidden = true;
+  } else if (isComplete) {
+    els.printCta.hidden = true;
+    els.printedChip.hidden = false;
+    els.printedTimeLabel.textContent = piece.printedAt ? formatDate(piece.printedAt) : "Complete";
+  } else {
+    els.printCta.hidden = false;
+    els.printCta.className = "coral-btn";
+    els.printCta.innerHTML = `<span class="btn-icon">⚡</span> Send to A1 mini`;
+    els.printedChip.hidden = true;
+  }
+
+  let tools = document.querySelector("#pieceTools");
+  if (!tools) {
+    tools = document.createElement("div");
+    tools.id = "pieceTools";
+    tools.className = "piece-tool-row";
+    els.actionPanel.append(tools);
+  }
+
+  tools.innerHTML = `
+    ${piece.path ? `<a class="tool-chip" href="${escapeHtml(piece.path)}">Download</a>` : ""}
+    ${piece.path ? `<button class="tool-chip" type="button" data-tool-action="open">Open</button>` : ""}
+    ${piece.path ? `<button class="tool-chip" type="button" data-tool-action="slice">Slice</button>` : ""}
+    <button class="tool-chip" type="button" data-tool-action="mark">${isComplete ? "Undo printed" : "Mark printed"}</button>
+  `;
+
+  tools.querySelectorAll("[data-tool-action]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (button.dataset.toolAction === "open") await openPieceWithHelper(project, piece);
+      if (button.dataset.toolAction === "slice") await slicePieceWithHelper(project, piece, button);
+      if (button.dataset.toolAction === "mark") togglePrinted(project, piece);
+    });
+  });
+}
+
+async function checkHelperConnection() {
+  updatePingStatus("pending", "Checking local helper...");
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    const response = await fetch(`${state.helperUrl}/health`, {
+      method: "GET",
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    updatePingStatus(response.ok ? "success" : "failed", response.ok ? "Local helper is active." : "Helper returned an error.");
+  } catch {
+    updatePingStatus("failed", "Local helper is offline.");
+  }
+}
+
+function updatePingStatus(type, message) {
+  els.pingDot.className = `status-dot ping-${type}`;
+  els.pingStatusMsg.textContent = message;
+}
+
+async function triggerPrintJob() {
+  const project = getSelectedProject();
+  const piece = project?.pieces[state.selectedDay - 1];
+  if (!project || !piece) return;
+  if (!piece.path) {
+    window.alert("This queued piece does not have a generated 3MF path yet. Generate the puzzle locally, then import the manifest.");
+    return;
+  }
+
+  const confirmed = window.confirm(`Slice and send ${piece.filename} as a single-colour print with AMS off?`);
+  if (!confirmed) return;
+
+  startProgressModal(piece);
+  try {
+    const response = await fetch(`${state.helperUrl}/print-piece`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId: project.id,
+        pieceId: piece.id,
+        path: piece.path
+      })
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(result.message || "Print request failed.");
+    }
+
+    piece.status = "printed";
+    piece.printedAt = new Date().toISOString();
+    project.updatedAt = new Date().toISOString();
+    saveProjectsToStorage();
+    finishProgressModal(true, `Sent ${piece.filename} to ${result.printerHost}. AMS is off; use the loaded single filament.`, result.stages || []);
+    updateUI();
+  } catch (error) {
+    finishProgressModal(false, `Could not send print job: ${error.message}. Check scripts/local_helper.py and the printer screen before trying again.`, []);
+  }
+}
+
+async function openPieceWithHelper(project, piece) {
+  try {
+    const response = await fetch(`${state.helperUrl}/open-piece`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: project.id, pieceId: piece.id, path: piece.path })
+    });
+    if (!response.ok) throw new Error(await response.text());
+  } catch {
+    window.alert("Local helper is not running. Start scripts/local_helper.py, or download the 3MF and open it in Bambu Studio.");
+  }
+}
+
+async function slicePieceWithHelper(project, piece, button) {
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "Slicing...";
+  try {
+    const response = await fetch(`${state.helperUrl}/slice-piece`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: project.id, pieceId: piece.id, path: piece.path })
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.message || "Slice failed.");
+    window.alert(`G-code sliced for ${piece.filename}\n\n${result.outputs.join("\n")}`);
+  } catch (error) {
+    window.alert(`Local helper could not slice this piece: ${error.message}`);
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
+
+function togglePrinted(project, piece) {
+  if (piece.status === "printed") {
+    piece.status = "pending";
+    piece.printedAt = null;
+  } else {
+    piece.status = "printed";
+    piece.printedAt = new Date().toISOString();
+  }
+  project.updatedAt = new Date().toISOString();
+  saveProjectsToStorage();
+  updateUI();
+}
+
+function startProgressModal(piece) {
+  els.progressTitle.textContent = piece.filename;
+  els.progressMessage.textContent = "Starting local slice. Bambu Studio may take about 30 seconds here.";
+  els.progressCloseButton.hidden = true;
+  currentPhaseIndex = 0;
+  renderStepsList(0, "running");
+  if (!els.printProgressDialog.open) els.printProgressDialog.showModal();
+  resumeProgressTimer();
+}
+
+function resumeProgressTimer() {
+  if (progressTimer) clearInterval(progressTimer);
+  progressTimer = setInterval(() => {
+    if (currentPhaseIndex < PRINT_PHASES.length - 2) {
+      currentPhaseIndex += 1;
+      renderStepsList(currentPhaseIndex, "running");
+      els.progressMessage.textContent = progressMessageForPhase(currentPhaseIndex);
+    }
+  }, 7000);
+}
+
+function finishProgressModal(ok, message, stages = []) {
+  if (progressTimer) clearInterval(progressTimer);
+  const finalIndex = ok ? PRINT_PHASES.length - 1 : Math.min(currentPhaseIndex, PRINT_PHASES.length - 2);
+  renderStepsList(finalIndex, ok ? "done" : "error");
+  els.progressMessage.textContent = stages.length ? `${message}\n\n${stages.join("\n")}` : message;
+  els.progressCloseButton.hidden = false;
+}
+
+function renderStepsList(activeIndex, status) {
+  const phase = PRINT_PHASES[activeIndex];
+  els.progressPercent.textContent = `${phase.percent}%`;
+  els.progressFill.style.width = `${phase.percent}%`;
+  els.progressSteps.innerHTML = PRINT_PHASES.map((item, index) => {
+    const stateClass = index < activeIndex || status === "done" ? "done" : index === activeIndex ? status : "pending";
+    return `<li class="${stateClass}">${escapeHtml(item.label)}</li>`;
+  }).join("");
+}
+
+function progressMessageForPhase(index) {
+  return [
+    "Reading printer config and checking LAN reachability.",
+    "Slicing the 3MF headlessly. The Bambu Studio window will not visibly change.",
+    "Wrapping the sliced G-code into a Bambu project package.",
+    "Uploading to the printer over FTPS. This can be the slowest step.",
+    "Sending the final project_file command with AMS disabled."
+  ][index] || "Waiting for printer response.";
+}
+
+function openAssemblyScreen() {
+  els.focusSection.hidden = true;
+  els.assemblySection.hidden = false;
+  state.revealed = false;
+  els.revealLockBox.hidden = false;
+  els.revealChip.hidden = true;
+  drawJigsaw();
+}
+
+function getPieceStatusLabel(piece) {
+  if (piece.status === "printed") return "PRINTED";
+  if (piece.status === "sliced") return "SLICED";
+  if (piece.path) return "READY";
+  return "QUEUED";
+}
+
+function getProjectStatus(project) {
+  const printed = project.pieces.filter((piece) => piece.status === "printed").length;
+  if (printed === project.pieces.length) return "complete";
+  if (printed > 0) return "active";
+  return project.status || "generated";
+}
+
+function drawOblique() {
+  const project = getSelectedProject();
+  if (!project) return;
+  const piece = project.pieces[state.selectedDay - 1];
+  const isComplete = piece.status === "printed";
+  const isProjectComplete = project.pieces.every((item) => item.status === "printed");
+  const rad = (theta * Math.PI) / 180;
+  const dxVec = depth * Math.cos(rad);
+  const dyVec = depth * Math.sin(rad);
+  const d = piece.day;
+  const topType = (d % 3) - 1;
+  const rightType = ((d + 1) % 3) - 1;
+  const bottomType = ((d + 2) % 3) - 1;
+  const leftType = ((d + 3) % 3) - 1;
+  const p1 = { x: 55, y: 55 };
+  const p2 = { x: 145, y: 55 };
+  const p3 = { x: 145, y: 145 };
+  const p4 = { x: 55, y: 145 };
+  const path = getPuzzlePiecePath(p1, p2, p3, p4, topType, rightType, bottomType, leftType);
+  const baseTopFill = isComplete ? "#5DCAA5" : "#FAC775";
+  const baseTopStroke = isComplete ? "#84e6c4" : "#ffdba3";
+
+  let svgContent = `
+    <svg viewBox="0 0 200 200" width="100%" height="100%" style="overflow: visible;">
+      <defs>
+        <filter id="shadowBlur" x="-20%" y="-20%" width="150%" height="150%">
+          <feGaussianBlur in="SourceAlpha" stdDeviation="6" />
+          <feOffset dx="${dxVec * 1.5}" dy="${dyVec * 1.5}" />
+          <feComponentTransfer><feFuncA type="linear" slope="0.65"/></feComponentTransfer>
+          <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+        <clipPath id="topFaceClip"><path d="${path}" /></clipPath>
+      </defs>
+      <path d="${path}" fill="#000" filter="url(#shadowBlur)" style="opacity: 0.6; mix-blend-mode: multiply;" />
+  `;
+
+  for (let i = 14; i >= 1; i -= 1) {
+    const ratio = i / 14;
+    const tx = dxVec * ratio;
+    const ty = dyVec * ratio;
+    const fill = isComplete
+      ? `hsl(161, ${69 + ratio * 10}%, ${24 - ratio * 15}%)`
+      : `hsl(36, ${86 + ratio * 10}%, ${34 - ratio * 20}%)`;
+    svgContent += `<g transform="translate(${tx}, ${ty})"><path d="${path}" fill="${fill}" stroke="${fill}" stroke-width="1" /></g>`;
+  }
+
+  svgContent += `
+      <path d="${path}" fill="${baseTopFill}" stroke="${baseTopStroke}" stroke-width="1.2" class="viewer-3d-piece-top" />
+      <g clip-path="url(#topFaceClip)">
+        <circle cx="100" cy="100" r="18" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1.5" />
+        <circle cx="100" cy="100" r="36" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1.5" />
+        <circle cx="100" cy="100" r="54" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1.5" />
+        <circle cx="100" cy="100" r="72" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1.5" />
+        <line x1="55" y1="100" x2="145" y2="100" stroke="rgba(255,255,255,0.15)" stroke-width="1" />
+        <line x1="100" y1="55" x2="100" y2="145" stroke="rgba(255,255,255,0.15)" stroke-width="1" />
+      </g>
+  `;
+
+  if (isProjectComplete) {
+    ["#EF9F27", "#FAC775", "#D85A30", "#1D9E75", "#5DCAA5"].forEach((fill, i) => {
+      const cx = 48 + i * 26;
+      const cy = 36 + Math.sin(i) * 24;
+      svgContent += `<circle cx="${cx}" cy="${cy}" r="${3 + (i % 2)}" fill="${fill}" style="opacity: 0.85;" />`;
+    });
+  }
+
+  els.obliqueViewer.innerHTML = `${svgContent}</svg>`;
+  els.completionBadge.textContent = isProjectComplete ? `${project.pieces.length}/${project.pieces.length} Complete` : `Day ${piece.day}`;
+  els.completionBadge.classList.toggle("complete", isComplete);
+}
+
+function drawJigsaw() {
+  const project = getSelectedProject();
+  if (!project) return;
+  const pieces = project.pieces;
+  const count = pieces.length;
+  const imageSource = project.assets?.sourceHidden || project.assets?.preview || "";
+  if (project.assets?.preview) {
+    drawGeneratedPreviewJigsaw(project, pieces);
+    return;
+  }
+
+  els.jigsawBoard.setAttribute("viewBox", "0 0 140 84");
+  els.jigsawContainer.classList.remove("preview-mode");
+  const width = 140;
+  const height = 84;
+  const grid = makeJigsawGrid(count);
+  let svgOut = "";
+  let defsOut = "";
+
+  grid.forEach((item, index) => {
+    const piece = pieces[index];
+    if (!piece) return;
+    const isPrinted = piece.status === "printed";
+    const isToday = piece.status !== "printed" && index === state.selectedDay - 1;
+    let dStr = `M ${item.p[0].x} ${item.p[0].y}`;
+    for (let i = 0; i < item.p.length; i += 1) {
+      dStr += getEdgePath(item.p[i], item.p[(i + 1) % item.p.length], item.t[i] || 0);
+    }
+    dStr += " Z";
+
+    const clipId = `jigsaw-clip-${index}`;
+    defsOut += `<clipPath id="${clipId}"><path d="${dStr}" /></clipPath>`;
+
+    if (state.revealed && imageSource) {
+      svgOut += `
+        <image href="${escapeHtml(imageSource)}" x="0" y="0" width="${width}" height="${height}" clip-path="url(#${clipId})" preserveAspectRatio="none" />
+        <path d="${dStr}" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="0.55" />
+        <text x="${item.center.x}" y="${item.center.y}" class="jigsaw-piece-text jigsaw-piece-revealed-text">${index + 1}</text>
+      `;
+    } else {
+      const fill = isPrinted ? "var(--teal-400)" : isToday ? "rgba(239, 159, 39, 0.22)" : "#1a221d";
+      const stroke = isPrinted ? "rgba(255,255,255,0.15)" : isToday ? "var(--amber-400)" : "rgba(255,255,255,0.04)";
+      const textFill = isPrinted ? "#ffffff" : isToday ? "var(--amber-100)" : "var(--ink-muted)";
+      svgOut += `
+        <path d="${dStr}" fill="${fill}" stroke="${stroke}" stroke-width="0.7" class="jigsaw-piece-path" />
+        <text x="${item.center.x}" y="${item.center.y}" fill="${textFill}" class="jigsaw-piece-text">${index + 1}</text>
+      `;
+    }
+  });
+
+  const defs = els.jigsawBoard.querySelector("defs");
+  defs.innerHTML = `<clipPath id="revealClip"><rect x="0" y="0" width="${width}" height="${height}" rx="4" /></clipPath>${defsOut}`;
+  els.jigsawPiecesGroup.innerHTML = svgOut;
+}
+
+function drawGeneratedPreviewJigsaw(project, pieces) {
+  els.jigsawBoard.setAttribute("viewBox", "0 0 100 100");
+  els.jigsawContainer.classList.add("preview-mode");
+  const defs = els.jigsawBoard.querySelector("defs");
+  defs.innerHTML = "";
+  const previewClass = state.revealed ? "generated-preview-image revealed" : "generated-preview-image hidden-reveal";
+
+  els.jigsawPiecesGroup.innerHTML = `
+    <image href="${escapeHtml(project.assets.preview)}" x="0" y="0" width="100" height="100" preserveAspectRatio="xMidYMid meet" class="${previewClass}" />
+    ${state.revealed ? "" : '<rect x="0" y="0" width="100" height="100" rx="5" class="generated-preview-veil" />'}
+  `;
+}
+
+function makeJigsawGrid(count) {
+  if (count <= 4) {
+    const v = [
+      [{ x: 0, y: 0 }, { x: 70, y: 0 }, { x: 140, y: 0 }],
+      [{ x: 0, y: 42 }, { x: 70, y: 42 }, { x: 140, y: 42 }],
+      [{ x: 0, y: 84 }, { x: 70, y: 84 }, { x: 140, y: 84 }]
+    ];
+    return [
+      { p: [v[0][0], v[0][1], v[1][1], v[1][0]], t: [0, 1, -1, 0], center: { x: 35, y: 21 } },
+      { p: [v[0][1], v[0][2], v[1][2], v[1][1]], t: [0, 0, 1, -1], center: { x: 105, y: 21 } },
+      { p: [v[1][0], v[1][1], v[2][1], v[2][0]], t: [1, -1, 0, 0], center: { x: 35, y: 63 } },
+      { p: [v[1][1], v[1][2], v[2][2], v[2][1]], t: [-1, 0, 0, 1], center: { x: 105, y: 63 } }
+    ];
+  }
+
+  const v = {
+    r0: [{ x: 0, y: 0 }, { x: 46.6, y: 0 }, { x: 93.3, y: 0 }, { x: 140, y: 0 }],
+    r1: [{ x: 0, y: 28 }, { x: 46.6, y: 28 }, { x: 93.3, y: 28 }, { x: 140, y: 28 }],
+    r2: [{ x: 0, y: 56 }, { x: 46.6, y: 56 }, { x: 93.3, y: 56 }, { x: 140, y: 56 }],
+    r3: [{ x: 0, y: 84 }, { x: 35, y: 84 }, { x: 105, y: 84 }, { x: 140, y: 84 }]
+  };
+  return [
+    { p: [v.r0[0], v.r0[1], v.r1[1], v.r1[0]], t: [0, 1, -1, 0], center: { x: 23.3, y: 14 } },
+    { p: [v.r0[1], v.r0[2], v.r1[2], v.r1[1]], t: [0, 1, -1, -1], center: { x: 70, y: 14 } },
+    { p: [v.r0[2], v.r0[3], v.r1[3], v.r1[2]], t: [0, 0, -1, -1], center: { x: 116.6, y: 14 } },
+    { p: [v.r1[0], v.r1[1], v.r2[1], { x: 35, y: 56 }, v.r3[1], v.r3[0]], t: [1, -1, 0, -1, 0, 0], center: { x: 21, y: 48 } },
+    { p: [v.r1[1], v.r1[2], v.r2[2], v.r2[1]], t: [1, 1, -1, 1], center: { x: 70, y: 42 } },
+    { p: [v.r1[2], v.r1[3], v.r3[3], v.r3[2], { x: 105, y: 56 }, v.r2[2]], t: [1, 0, 0, 1, 0, -1], center: { x: 119, y: 48 } },
+    { p: [{ x: 35, y: 56 }, { x: 105, y: 56 }, v.r3[2], v.r3[1]], t: [1, -1, 0, 1], center: { x: 70, y: 70 } }
+  ];
+}
+
+function getPuzzlePiecePath(p1, p2, p3, p4, topType, rightType, bottomType, leftType) {
+  return `M ${p1.x} ${p1.y}${getEdgePath(p1, p2, topType)}${getEdgePath(p2, p3, rightType)}${getEdgePath(p3, p4, bottomType)}${getEdgePath(p4, p1, leftType)} Z`;
+}
+
+function getEdgePath(p1, p2, type) {
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  if (type === 0) return ` L ${p2.x} ${p2.y}`;
+  const len = Math.hypot(dx, dy);
+  const ux = dx / len;
+  const uy = dy / len;
+  const px = uy;
+  const py = -ux;
+  const h = len * 0.18 * type;
+  return ` C ${p1.x + dx * 0.35 - px * h * 0.1} ${p1.y + dy * 0.35 - py * h * 0.1}, ${p1.x + dx * 0.4 - px * h * 0.2} ${p1.y + dy * 0.4 - py * h * 0.2}, ${p1.x + dx * 0.3 + px * h} ${p1.y + dy * 0.3 + py * h}` +
+    ` C ${p1.x + dx * 0.45 + px * h} ${p1.y + dy * 0.45 + py * h}, ${p1.x + dx * 0.55 + px * h} ${p1.y + dy * 0.55 + py * h}, ${p1.x + dx * 0.7 + px * h} ${p1.y + dy * 0.7 + py * h}` +
+    ` C ${p1.x + dx * 0.6 - px * h * 0.2} ${p1.y + dy * 0.6 - py * h * 0.2}, ${p1.x + dx * 0.65 - px * h * 0.1} ${p1.y + dy * 0.65 - py * h * 0.1}, ${p2.x} ${p2.y}`;
+}
+
+function setupObliqueDrag() {
+  els.obliqueViewer.addEventListener("mousedown", (event) => {
+    isDragging = true;
+    startX = event.clientX;
+    initialTheta = theta;
+    event.preventDefault();
+  });
+  window.addEventListener("mousemove", (event) => {
+    if (!isDragging) return;
+    theta = (initialTheta + (event.clientX - startX) * 0.8) % 360;
+    drawOblique();
+  });
+  window.addEventListener("mouseup", () => {
+    isDragging = false;
+  });
+  els.obliqueViewer.addEventListener("touchstart", (event) => {
+    if (event.touches.length !== 1) return;
+    isDragging = true;
+    startX = event.touches[0].clientX;
+    initialTheta = theta;
+    event.preventDefault();
+  }, { passive: false });
+  els.obliqueViewer.addEventListener("touchmove", (event) => {
+    if (!isDragging || event.touches.length !== 1) return;
+    theta = (initialTheta + (event.touches[0].clientX - startX) * 0.8) % 360;
+    drawOblique();
+    event.preventDefault();
+  }, { passive: false });
+  els.obliqueViewer.addEventListener("touchend", () => {
+    isDragging = false;
+  });
+}
+
+function addDays(dateString, days) {
+  const date = new Date(`${dateString}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function formatDate(dateString) {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    weekday: "short"
+  }).format(new Date(dateString.includes("T") ? dateString : `${dateString}T00:00:00`));
+}
+
+function slugify(value) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 64) || "weekly-puzzle";
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 bootstrap();

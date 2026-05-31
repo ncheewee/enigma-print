@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=mobile-preview-outlines">
   </head>
   <body>
     <div class="mobile-shell">
@@ -20,7 +20,7 @@
           <div class="brand-badge">E</div>
           <div>
             <h1>Enigma Print</h1>
-            <p class="subtitle" id="projectSub">Bambu Lab A1 mini Weekly</p>
+            <p class="subtitle" id="projectSub">Daily mystery prints</p>
           </div>
         </div>
         <div class="header-actions">
@@ -124,7 +124,7 @@
             <div class="assembly-header">
               <p class="piece-eyebrow">ASSEMBLY GUIDE</p>
               <h2 class="piece-title">Piece It Together</h2>
-              <p class="assembly-subtitle">Assemble the 7 physical prints in sequential order, then tap below to reveal the design.</p>
+              <p class="assembly-subtitle">Assemble the physical prints in sequential order, then tap below to reveal the design.</p>
             </div>
 
             <!-- SVG Interlocking Jigsaw Board -->
@@ -177,37 +177,31 @@
       <form method="dialog" class="dialog-form" id="settingsForm">
         <div class="dialog-header">
           <div>
-            <p class="eyebrow">PRINTER CONFIGURATION</p>
-            <h2>Bambu Lab Cloud Link</h2>
+            <p class="eyebrow">WORKSPACE</p>
+            <h2>Puzzle Workspace</h2>
           </div>
           <button class="close-icon-btn" value="cancel" type="submit" aria-label="Close settings">×</button>
         </div>
 
         <div class="dialog-body">
           <p class="dialog-explain">
-            Link your printer directly to Bambu Lab Cloud. Pre-sliced models are streamed securely from GitHub to your A1 mini via the cloud bridge.
+            Load generated puzzle manifests, pick the active week, and connect this mobile dashboard to the local print helper.
           </p>
-          
+
+          <div class="project-list-mobile" id="projectList"></div>
+
+          <div class="utility-actions">
+            <button class="secondary-btn" id="newProjectButton" type="button">New queue</button>
+            <button class="secondary-btn" id="importButton" type="button">Import manifest</button>
+            <button class="secondary-btn" id="exportButton" type="button">Export</button>
+            <button class="secondary-btn" id="resetButton" type="button">Reload data</button>
+          </div>
+          <input id="importInput" type="file" accept="application/json,.json" hidden>
+
           <label class="form-label">
-            Cloud Bridge API URL
+            Local Helper URL
             <input type="url" id="helperUrlInput" required placeholder="http://192.168.1.140:4777">
           </label>
-
-          <label class="form-label">
-            Bambu Account Email
-            <input type="email" id="bambuEmailInput" required placeholder="name@example.com" autocomplete="username">
-          </label>
-
-          <label class="form-label">
-            Bambu Account Password
-            <input type="password" id="bambuPasswordInput" required placeholder="••••••••••••" autocomplete="current-password">
-          </label>
-
-          <label class="form-label">
-            Printer Serial Number (SN)
-            <input type="text" id="bambuSerialInput" required placeholder="01S00A123456789">
-          </label>
-
 
           <div class="connection-status-panel">
             <span class="status-dot ping-pending" id="pingDot"></span>
@@ -215,14 +209,52 @@
           </div>
 
           <div class="mixed-content-notice">
-            <strong>🔒 Encryption & Privacy Notice:</strong>
-            Credentials are saved purely in your local browser storage (`localStorage`) and sent securely over encrypted HTTPS requests only. Your password is never stored or tracked.
+            <strong>Local print bridge:</strong>
+            Start <code>python3 scripts/local_helper.py</code> on the Mac with Bambu Studio installed. The helper slices generated 3MF pieces, packages G-code, uploads to the A1 mini, and sends the AMS-off print command.
           </div>
         </div>
 
         <menu class="dialog-actions">
           <button class="secondary-btn" id="cancelSettingsBtn" type="button">Cancel</button>
           <button class="primary-btn" id="saveSettingsBtn" value="default" type="submit">Save & Link</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="projectDialog" class="settings-dialog">
+      <form method="dialog" class="dialog-form" id="projectForm">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow">GENERATE QUEUE</p>
+            <h2>New Weekly Puzzle</h2>
+          </div>
+          <button class="close-icon-btn" value="cancel" type="submit" aria-label="Close dialog">×</button>
+        </div>
+
+        <label class="form-label">
+          Project name
+          <input id="nameInput" name="name" required maxlength="80" placeholder="Week 21 mystery">
+        </label>
+
+        <label class="form-label">
+          Secret prompt hint
+          <input id="hintInput" name="hint" maxlength="120" placeholder="Ancient mechanical garden">
+        </label>
+
+        <div class="form-row">
+          <label class="form-label">
+            Pieces
+            <input id="piecesInput" name="pieces" required min="3" max="14" value="7" type="number">
+          </label>
+          <label class="form-label">
+            Start date
+            <input id="startInput" name="startDate" required type="date">
+          </label>
+        </div>
+
+        <menu class="dialog-actions">
+          <button class="secondary-btn" value="cancel" type="submit">Cancel</button>
+          <button class="primary-btn" value="default" type="submit">Create</button>
         </menu>
       </form>
     </dialog>
@@ -241,24 +273,9 @@
           <div class="progress-bar-fill" id="progressFill"></div>
         </div>
         <ol class="progress-steps-list" id="progressSteps">
-          <!-- Populated in JS: lists out Slicing, Packaging, FTP Upload, MQTT Send -->
+          <!-- Populated in JS: lists out local helper print stages -->
         </ol>
-        <p class="progress-message-detail" id="progressMessage">Waiting for LAN slice...</p>
-        
-        <!-- Inline Verification Code Form (Hidden by default) -->
-        <div id="inlineVerifyContainer" style="display: none; margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid rgba(255,255,255,0.1);">
-          <form id="inlineVerifyForm" style="display: flex; flex-direction: column; gap: 0.75rem;">
-            <label class="form-label" style="font-weight: 500; font-size: 0.85rem; color: #a1a1aa; text-align: left; display: block;">
-              Enter the 6-Digit Email Code
-              <input type="text" id="inlineVerifyInput" required maxlength="6" pattern="\d{6}" placeholder="123456" 
-                     style="margin-top: 0.5rem; padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(0,0,0,0.3); color: #fff; text-align: center; font-size: 1.25rem; letter-spacing: 0.25rem; font-weight: bold; width: 100%; box-sizing: border-box; outline: none; transition: border-color 0.2s;">
-            </label>
-            <div style="display: flex; gap: 0.5rem; margin-top: 0.25rem;">
-              <button class="secondary-btn" id="inlineVerifyCancelBtn" type="button" style="flex: 1;">Cancel Print</button>
-              <button class="primary-btn" type="submit" style="flex: 2;">Submit & Start Print</button>
-            </div>
-          </form>
-        </div>
+        <p class="progress-message-detail" id="progressMessage">Waiting for local helper.</p>
 
         <div class="progress-actions">
           <button class="secondary-btn" id="progressCloseButton" type="button" hidden>Close Window</button>
@@ -266,6 +283,6 @@
       </div>
     </dialog>
 
-    <script src="app.js" type="module"></script>
+    <script src="app.js?v=mobile-preview-outlines" type="module"></script>
   </body>
 </html>

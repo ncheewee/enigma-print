@@ -49,6 +49,10 @@ body {
   overflow-x: hidden;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 /* Mobile viewport wrapper (Pixel 8 optimized layout) */
 .mobile-shell {
   width: 100%;
@@ -405,6 +409,39 @@ body {
   width: 100%;
 }
 
+.piece-tool-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tool-chip {
+  min-height: 38px;
+  border-radius: 12px;
+  border: 1px solid var(--border-soft);
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--ink-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: var(--transition-tactile);
+}
+
+.tool-chip:hover {
+  color: var(--ink-primary);
+  background: #2b352f;
+}
+
+.tool-chip:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
 .coral-btn, .amber-btn, .secondary-btn, .primary-btn {
   width: 100%;
   min-height: 52px;
@@ -556,6 +593,31 @@ body {
   overflow: hidden;
   box-shadow: inset 0 0 20px rgba(0,0,0,0.6);
   padding: 1px;
+}
+
+.jigsaw-container.preview-mode {
+  aspect-ratio: 1;
+  background: #0e1713;
+}
+
+.generated-preview-image {
+  transition: filter 240ms ease, opacity 240ms ease;
+}
+
+.generated-preview-image.hidden-reveal {
+  filter: grayscale(1) brightness(0.58) contrast(1.25) sepia(0.15) hue-rotate(88deg);
+  opacity: 0.72;
+}
+
+.generated-preview-image.revealed {
+  filter: none;
+  opacity: 1;
+}
+
+.generated-preview-veil {
+  fill: rgba(10, 16, 13, 0.18);
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 0.6;
 }
 
 .jigsaw-piece-path {
@@ -805,6 +867,76 @@ dialog::backdrop {
   font-size: 0.95rem;
   outline: none;
   transition: var(--transition-tactile);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.25fr);
+  gap: 12px;
+}
+
+.project-list-mobile {
+  display: grid;
+  gap: 8px;
+}
+
+.project-picker {
+  width: 100%;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--ink-primary);
+  padding: 12px 14px;
+  text-align: left;
+  transition: var(--transition-tactile);
+}
+
+.project-picker strong,
+.project-picker small {
+  display: block;
+}
+
+.project-picker strong {
+  font-family: var(--font-brand);
+  font-size: 0.94rem;
+}
+
+.project-picker small {
+  margin-top: 2px;
+  color: var(--ink-secondary);
+  font-size: 0.72rem;
+}
+
+.project-picker.active {
+  border-color: rgba(239, 159, 39, 0.55);
+  background: rgba(239, 159, 39, 0.08);
+  box-shadow: 0 0 18px rgba(239, 159, 39, 0.08);
+}
+
+.utility-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.utility-actions .secondary-btn {
+  min-height: 42px;
+  border-radius: 12px;
+  font-size: 0.82rem;
+}
+
+.empty-viewer {
+  width: 92px;
+  height: 92px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, var(--teal-400), #0f523c);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-family: var(--font-brand);
+  font-size: 3rem;
+  font-weight: 900;
+  box-shadow: 0 12px 34px rgba(29, 158, 117, 0.25);
 }
 
 .form-label input:focus {
