@@ -8,7 +8,7 @@
 
 const STORAGE_KEY = "enigmaprint.projects.v2";
 const HELPER_URL_KEY = "enigmaprint.helperUrl";
-const APP_VERSION = "v0.5.4-mobile";
+const APP_VERSION = "v0.5.5-mobile";
 
 const PRINT_PHASES = [
   { key: "config", label: "Load printer settings", percent: 8 },
@@ -64,6 +64,8 @@ const els = {
   jigsawPiecesGroup: document.querySelector("#jigsawPiecesGroup"),
   revealLockBox: document.querySelector("#revealLockBox"),
   revealChip: document.querySelector("#revealChip"),
+  revealWeekLabel: document.querySelector("#revealWeekLabel"),
+  revealTitleLabel: document.querySelector("#revealTitleLabel"),
   hideRevealBtn: document.querySelector("#hideRevealBtn"),
   backToTodayBtn: document.querySelector("#backToTodayBtn"),
 
@@ -458,6 +460,8 @@ function updateUI() {
   els.projectSub.textContent = `${project.targetPrinter} · ${project.name}`;
   els.pieceDayLabel.textContent = `DAY ${piece.day} OF ${project.pieces.length}`;
   els.pieceNameLabel.textContent = piece.name;
+  els.revealWeekLabel.textContent = getProjectRevealBadge(project);
+  els.revealTitleLabel.textContent = project.name;
   els.statTime.textContent = piece.printTimeMinutes ? `${piece.printTimeMinutes}m` : "TBD";
   els.statFilament.textContent = piece.filamentWeightG ? `${piece.filamentWeightG}g` : "TBD";
   els.statStatus.textContent = getPieceStatusLabel(piece);
@@ -744,6 +748,14 @@ function getProjectStatus(project) {
   return project.status || "generated";
 }
 
+function getProjectRevealBadge(project) {
+  const date = project.createdAt ? new Date(project.createdAt) : null;
+  if (!date || Number.isNaN(date.getTime())) return "Reveal";
+  const start = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const day = Math.floor((date - start) / 86400000) + 1;
+  return `Week ${Math.ceil(day / 7)}`;
+}
+
 function setViewAxis(axis) {
   const presets = {
     x: { x: -8, y: 84, z: 0 },
@@ -936,7 +948,7 @@ function drawCombinedGeometryJigsaw(project, pieces) {
     revealed: state.revealed,
     depthScale: 0.85,
     imageHref: state.revealed ? project.assets?.preview : "",
-    topPattern: !state.revealed
+    topPattern: false
   });
   els.jigsawPiecesGroup.innerHTML = svg
     .replace(/^<svg[^>]*>/, "")

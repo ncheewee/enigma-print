@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 import sys
 import zipfile
 import xml.etree.ElementTree as ET
@@ -54,6 +55,43 @@ def ring_points(polygon: Polygon) -> list[list[float]]:
     return [[round(x, 3), round(y, 3)] for x, y in polygon.exterior.coords[:-1]]
 
 
+def visual_polygons_from_generator(manifest: dict) -> list[Polygon] | None:
+    if not str(manifest.get("mode", "")).startswith("surprise-"):
+        return None
+
+    dimensions = manifest.get("dimensionsMm") or {}
+    if not dimensions.get("irregularOuterSilhouette"):
+        return None
+
+    width = float(dimensions.get("width") or 50)
+    height = float(dimensions.get("height") or 50)
+    name = str(manifest.get("name", "")).lower()
+    design = "orbit-shrine" if "orbit" in name else "relic-island"
+
+    generator_path = Path(__file__).with_name("generate_surprise_jigsaw_3mf.py")
+    spec = importlib.util.spec_from_file_location("generate_surprise_jigsaw_3mf", generator_path)
+    if not spec or not spec.loader:
+      return None
+    generator = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(generator)
+
+    pieces = [
+        generator.clean_piece_polygon(generator.sample_svg_path(path_d, 10), 0.10, 0.50)
+        for path_d in generator.build_cut_paths(width, height, 2, 2, 11)
+    ]
+    silhouette = generator.irregular_silhouette(width, height, design)
+    clipped_pieces = []
+    for piece in pieces:
+        clipped = piece.intersection(silhouette)
+        if clipped.is_empty:
+            continue
+        if clipped.geom_type == "MultiPolygon":
+            clipped = max(clipped.geoms, key=lambda item: item.area)
+        if clipped.geom_type == "Polygon" and clipped.area > 0:
+            clipped_pieces.append(clipped)
+    return clipped_pieces or None
+
+
 def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit("Usage: extract_viewer_geometry.py <generated-project-dir>")
@@ -62,11 +100,13 @@ def main() -> None:
     manifest_path = project_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
+    visual_polygons = visual_polygons_from_generator(manifest)
+
     pieces = []
     for index, piece in enumerate(manifest["pieces"], start=1):
         filename = piece.get("filename") or f"piece-{index:02d}.3mf"
         piece_path = project_dir / filename
-        polygon = polygon_from_3mf(piece_path)
+        polygon = visual_polygons[index - 1] if visual_polygons and index <= len(visual_polygons) else polygon_from_3mf(piece_path)
         pieces.append(
             {
                 "day": piece.get("day", index),
@@ -77,13 +117,13 @@ def main() -> None:
         )
 
     combined = unary_union([Polygon(item["outline"]) for item in pieces]).buffer(0)
+    minx, miny, maxx, maxy = combined.bounds
     if isinstance(combined, MultiPolygon):
         combined = max(combined.geoms, key=lambda item: item.area)
 
-    minx, miny, maxx, maxy = combined.bounds
     payload = {
         "version": 1,
-        "source": "3mf-projected-footprints",
+        "source": "generator-preview-pieces" if visual_polygons else "3mf-projected-footprints",
         "project": manifest.get("name", project_dir.name),
         "bounds": [round(minx, 3), round(miny, 3), round(maxx, 3), round(maxy, 3)],
         "pieces": pieces,
