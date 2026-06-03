@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=actual-3d-rotation">
+    <link rel="stylesheet" href="styles.css?v=actual-3d-free-rotation">
   </head>
   <body>
     <div class="mobile-shell">
@@ -43,7 +43,12 @@
             <!-- oblique 3D viewer container -->
             <div class="viewer-wrapper">
               <div class="viewer-indicator">
-                <span class="axis-tag">X / Y / Z</span>
+                <div class="axis-controls" aria-label="3D view controls">
+                  <button class="axis-tag" type="button" data-view-axis="x" title="View from X axis">X</button>
+                  <button class="axis-tag" type="button" data-view-axis="y" title="View from Y axis">Y</button>
+                  <button class="axis-tag" type="button" data-view-axis="z" title="View from top">Z</button>
+                  <button class="axis-tag active" type="button" data-view-axis="iso" title="Isometric view">ISO</button>
+                </div>
                 <span class="rotate-hint">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
@@ -283,6 +288,6 @@
       </div>
     </dialog>
 
-    <script src="app.js?v=actual-3d-rotation" type="module"></script>
+    <script src="app.js?v=actual-3d-free-rotation" type="module"></script>
   </body>
 </html>

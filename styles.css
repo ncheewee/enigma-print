@@ -200,17 +200,34 @@ body {
   justify-content: space-between;
   align-items: center;
   pointer-events: none;
+  z-index: 3;
+}
+
+.axis-controls {
+  display: inline-flex;
+  gap: 4px;
+  pointer-events: auto;
 }
 
 .axis-tag {
+  appearance: none;
   font-size: 0.65rem;
   font-weight: 700;
-  letter-spacing: 0.15em;
+  letter-spacing: 0.05em;
   color: var(--ink-muted);
   background: rgba(255, 255, 255, 0.04);
   padding: 4px 8px;
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.axis-tag:hover,
+.axis-tag.active {
+  color: var(--ink-strong);
+  border-color: rgba(93, 202, 165, 0.35);
+  background: rgba(93, 202, 165, 0.16);
 }
 
 .rotate-hint {

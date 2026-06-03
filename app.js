@@ -8,7 +8,7 @@
 
 const STORAGE_KEY = "enigmaprint.projects.v2";
 const HELPER_URL_KEY = "enigmaprint.helperUrl";
-const APP_VERSION = "v0.5.2-mobile";
+const APP_VERSION = "v0.5.3-mobile";
 
 const PRINT_PHASES = [
   { key: "config", label: "Load printer settings", percent: 8 },
@@ -42,6 +42,7 @@ const els = {
   startInput: document.querySelector("#startInput"),
 
   obliqueViewer: document.querySelector("#obliqueViewer"),
+  axisControls: document.querySelector(".axis-controls"),
   completionBadge: document.querySelector("#completionBadge"),
   prevDayButton: document.querySelector("#prevDayButton"),
   nextDayButton: document.querySelector("#nextDayButton"),
@@ -83,11 +84,18 @@ let state = {
   revealed: false
 };
 
-let theta = 45;
+let rotation = {
+  x: -38,
+  y: 8,
+  z: 45,
+  view: "iso"
+};
+let theta = rotation.z;
 let depth = 14;
 let isDragging = false;
 let startX = 0;
-let initialTheta = 45;
+let startY = 0;
+let initialRotation = { ...rotation };
 let progressTimer = null;
 let currentPhaseIndex = 0;
 const geometryCache = new Map();
@@ -197,6 +205,12 @@ function attachEvents() {
     if (!project || state.selectedDay >= project.pieces.length) return;
     state.selectedDay += 1;
     updateUI();
+  });
+
+  els.axisControls?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-view-axis]");
+    if (!button) return;
+    setViewAxis(button.dataset.viewAxis);
   });
 
   els.printCta.addEventListener("click", () => {
@@ -730,6 +744,26 @@ function getProjectStatus(project) {
   return project.status || "generated";
 }
 
+function setViewAxis(axis) {
+  const presets = {
+    x: { x: -8, y: 84, z: 0 },
+    y: { x: -8, y: 0, z: 90 },
+    z: { x: 0, y: 0, z: 0 },
+    iso: { x: -38, y: 8, z: 45 }
+  };
+  rotation = { ...rotation, ...(presets[axis] || presets.iso), view: axis || "iso" };
+  theta = rotation.z;
+  renderAxisControls();
+  drawOblique();
+  if (!els.assemblySection.hidden) drawJigsaw();
+}
+
+function renderAxisControls() {
+  els.axisControls?.querySelectorAll("[data-view-axis]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.viewAxis === rotation.view);
+  });
+}
+
 function drawOblique() {
   const project = getSelectedProject();
   if (!project) return;
@@ -957,6 +991,7 @@ function renderExtrudedOutlinesSvg({
   const shadowFill = "rgba(0,0,0,0.32)";
   const sideFaces = projected.outlines.flatMap((item) => makeSideFaces(item.top, item.bottom))
     .sort((a, b) => a.depth - b.depth);
+  const seamLayer = topPaths.map((path) => `<path d="${path}" fill="none" stroke="rgba(255,255,255,0.36)" stroke-width="1.15" />`).join("");
 
   const pattern = topPattern ? `
     <g clip-path="url(#${prefix}-clip)">
@@ -969,8 +1004,9 @@ function renderExtrudedOutlinesSvg({
   ` : "";
 
   const imageLayer = imageHref ? `
-    <image href="${escapeHtml(imageHref)}" x="${projected.image.x}" y="${projected.image.y}" width="${projected.image.size}" height="${projected.image.size}" preserveAspectRatio="xMidYMid meet" clip-path="url(#${prefix}-clip)" class="generated-preview-image revealed" />
-    ${topPaths.map((path) => `<path d="${path}" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.2" />`).join("")}
+    ${topPaths.map((path) => `<path d="${path}" fill="${topFill}" stroke="${topStroke}" stroke-width="1.1" class="viewer-3d-piece-top" />`).join("")}
+    <image href="${escapeHtml(imageHref)}" x="${projected.image.x}" y="${projected.image.y}" width="${projected.image.width}" height="${projected.image.height}" preserveAspectRatio="none" clip-path="url(#${prefix}-clip)" class="generated-preview-image revealed" />
+    ${seamLayer}
   ` : `
     ${topPaths.map((path) => `<path d="${path}" fill="${mutedFill}" stroke="${mutedStroke}" stroke-width="1.4" class="viewer-3d-piece-top" />`).join("")}
     ${pattern}
@@ -998,15 +1034,15 @@ function projectExtrudedOutlines(outlines, bounds, width, height, depthScale) {
   const cy = minY + sourceHeight / 2;
   const sourceSpan = Math.max(sourceWidth, sourceHeight);
   const thickness = sourceSpan * 0.13 * depthScale;
-  const rotation = {
-    z: (theta * Math.PI) / 180,
-    x: (-38 * Math.PI) / 180,
-    y: (8 * Math.PI) / 180
+  const currentRotation = {
+    z: (rotation.z * Math.PI) / 180,
+    x: (rotation.x * Math.PI) / 180,
+    y: (rotation.y * Math.PI) / 180
   };
 
   const projected = outlines.map((outline) => {
-    const top3d = outline.map(([x, y]) => rotate3d(x - cx, y - cy, thickness / 2, rotation));
-    const bottom3d = outline.map(([x, y]) => rotate3d(x - cx, y - cy, -thickness / 2, rotation));
+    const top3d = outline.map(([x, y]) => rotate3d(x - cx, y - cy, thickness / 2, currentRotation));
+    const bottom3d = outline.map(([x, y]) => rotate3d(x - cx, y - cy, -thickness / 2, currentRotation));
     return { top3d, bottom3d };
   });
   const all = projected.flatMap((item) => [...item.top3d, ...item.bottom3d]);
@@ -1029,11 +1065,18 @@ function projectExtrudedOutlines(outlines, bounds, width, height, depthScale) {
     top: item.top3d.map(toSvg),
     bottom: item.bottom3d.map(toSvg)
   }));
+  const topPoints = projectedOutlines.flatMap((item) => item.top);
+  const minTopX = Math.min(...topPoints.map((point) => point.x));
+  const maxTopX = Math.max(...topPoints.map((point) => point.x));
+  const minTopY = Math.min(...topPoints.map((point) => point.y));
+  const maxTopY = Math.max(...topPoints.map((point) => point.y));
+  const topWidth = maxTopX - minTopX || imageSize;
+  const topHeight = maxTopY - minTopY || imageSize;
   return {
     outlines: projectedOutlines,
     center: { x: width / 2, y: height / 2 },
     size: imageSize,
-    image: { x: (width - imageSize) / 2, y: (height - imageSize) / 2, size: imageSize },
+    image: { x: minTopX, y: minTopY, width: topWidth, height: topHeight },
     shadow: {
       y: Math.min(height - 17, height / 2 + imageSize * 0.33),
       rx: imageSize * 0.42,
@@ -1177,7 +1220,7 @@ function setupObliqueDrag() {
   addRotationDragTarget(els.jigsawContainer);
   window.addEventListener("mousemove", (event) => {
     if (!isDragging) return;
-    theta = (initialTheta + (event.clientX - startX) * 0.8) % 360;
+    rotateFromDrag(event.clientX, event.clientY);
     drawOblique();
     if (!els.assemblySection.hidden) drawJigsaw();
   });
@@ -1186,7 +1229,7 @@ function setupObliqueDrag() {
   });
   window.addEventListener("touchmove", (event) => {
     if (!isDragging || event.touches.length !== 1) return;
-    theta = (initialTheta + (event.touches[0].clientX - startX) * 0.8) % 360;
+    rotateFromDrag(event.touches[0].clientX, event.touches[0].clientY);
     drawOblique();
     if (!els.assemblySection.hidden) drawJigsaw();
     event.preventDefault();
@@ -1200,16 +1243,34 @@ function addRotationDragTarget(target) {
   target.addEventListener("mousedown", (event) => {
     isDragging = true;
     startX = event.clientX;
-    initialTheta = theta;
+    startY = event.clientY;
+    initialRotation = { ...rotation };
     event.preventDefault();
   });
   target.addEventListener("touchstart", (event) => {
     if (event.touches.length !== 1) return;
     isDragging = true;
     startX = event.touches[0].clientX;
-    initialTheta = theta;
+    startY = event.touches[0].clientY;
+    initialRotation = { ...rotation };
     event.preventDefault();
   }, { passive: false });
+}
+
+function rotateFromDrag(clientX, clientY) {
+  rotation = {
+    ...rotation,
+    x: clamp(initialRotation.x - (clientY - startY) * 0.45, -82, 82),
+    y: clamp(initialRotation.y + (clientX - startX) * 0.18, -68, 68),
+    z: (initialRotation.z + (clientX - startX) * 0.45) % 360,
+    view: "custom"
+  };
+  theta = rotation.z;
+  renderAxisControls();
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function addDays(dateString, days) {
