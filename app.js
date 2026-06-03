@@ -8,7 +8,7 @@
 
 const STORAGE_KEY = "enigmaprint.projects.v2";
 const HELPER_URL_KEY = "enigmaprint.helperUrl";
-const APP_VERSION = "v0.5.3-mobile";
+const APP_VERSION = "v0.5.4-mobile";
 
 const PRINT_PHASES = [
   { key: "config", label: "Load printer settings", percent: 8 },
@@ -780,7 +780,7 @@ function drawOblique() {
       complete: isComplete,
       revealed: true,
       depthScale: 1,
-      topPattern: true
+      topPattern: false
     });
     els.completionBadge.textContent = isProjectComplete ? `${project.pieces.length}/${project.pieces.length} Complete` : `Day ${piece.day}`;
     els.completionBadge.classList.toggle("complete", isComplete);
@@ -1005,7 +1005,7 @@ function renderExtrudedOutlinesSvg({
 
   const imageLayer = imageHref ? `
     ${topPaths.map((path) => `<path d="${path}" fill="${topFill}" stroke="${topStroke}" stroke-width="1.1" class="viewer-3d-piece-top" />`).join("")}
-    <image href="${escapeHtml(imageHref)}" x="${projected.image.x}" y="${projected.image.y}" width="${projected.image.width}" height="${projected.image.height}" preserveAspectRatio="none" clip-path="url(#${prefix}-clip)" class="generated-preview-image revealed" />
+    <image href="${escapeHtml(imageHref)}" x="0" y="0" width="1" height="1" preserveAspectRatio="none" transform="${projected.image.transform}" clip-path="url(#${prefix}-clip)" class="generated-preview-image revealed" />
     ${seamLayer}
   ` : `
     ${topPaths.map((path) => `<path d="${path}" fill="${mutedFill}" stroke="${mutedStroke}" stroke-width="1.4" class="viewer-3d-piece-top" />`).join("")}
@@ -1045,6 +1045,11 @@ function projectExtrudedOutlines(outlines, bounds, width, height, depthScale) {
     const bottom3d = outline.map(([x, y]) => rotate3d(x - cx, y - cy, -thickness / 2, currentRotation));
     return { top3d, bottom3d };
   });
+  const textureCorners3d = [
+    rotate3d(minX - cx, minY - cy, thickness / 2, currentRotation),
+    rotate3d(maxX - cx, minY - cy, thickness / 2, currentRotation),
+    rotate3d(minX - cx, maxY - cy, thickness / 2, currentRotation)
+  ];
   const all = projected.flatMap((item) => [...item.top3d, ...item.bottom3d]);
   const minPX = Math.min(...all.map((point) => point.x));
   const maxPX = Math.max(...all.map((point) => point.x));
@@ -1065,6 +1070,7 @@ function projectExtrudedOutlines(outlines, bounds, width, height, depthScale) {
     top: item.top3d.map(toSvg),
     bottom: item.bottom3d.map(toSvg)
   }));
+  const textureCorners = textureCorners3d.map(toSvg);
   const topPoints = projectedOutlines.flatMap((item) => item.top);
   const minTopX = Math.min(...topPoints.map((point) => point.x));
   const maxTopX = Math.max(...topPoints.map((point) => point.x));
@@ -1076,13 +1082,27 @@ function projectExtrudedOutlines(outlines, bounds, width, height, depthScale) {
     outlines: projectedOutlines,
     center: { x: width / 2, y: height / 2 },
     size: imageSize,
-    image: { x: minTopX, y: minTopY, width: topWidth, height: topHeight },
+    image: {
+      transform: textureTransform(textureCorners[0], textureCorners[1], textureCorners[2]),
+      x: minTopX,
+      y: minTopY,
+      width: topWidth,
+      height: topHeight
+    },
     shadow: {
       y: Math.min(height - 17, height / 2 + imageSize * 0.33),
       rx: imageSize * 0.42,
       ry: imageSize * 0.12
     }
   };
+}
+
+function textureTransform(origin, right, down) {
+  const a = right.x - origin.x;
+  const b = right.y - origin.y;
+  const c = down.x - origin.x;
+  const d = down.y - origin.y;
+  return `matrix(${a.toFixed(4)} ${b.toFixed(4)} ${c.toFixed(4)} ${d.toFixed(4)} ${origin.x.toFixed(4)} ${origin.y.toFixed(4)})`;
 }
 
 function rotate3d(x, y, z, rotation) {
