@@ -8,7 +8,7 @@
 
 const STORAGE_KEY = "enigmaprint.projects.v2";
 const HELPER_URL_KEY = "enigmaprint.helperUrl";
-const APP_VERSION = "v0.5.1-mobile";
+const APP_VERSION = "v0.5.2-mobile";
 
 const PRINT_PHASES = [
   { key: "config", label: "Load printer settings", percent: 8 },
@@ -844,6 +844,7 @@ function drawJigsaw() {
 
   els.jigsawBoard.setAttribute("viewBox", "0 0 140 84");
   els.jigsawContainer.classList.remove("preview-mode");
+  els.jigsawPiecesGroup.setAttribute("clip-path", "url(#revealClip)");
   const width = 140;
   const height = 84;
   const grid = makeJigsawGrid(count);
@@ -889,13 +890,12 @@ function drawJigsaw() {
 function drawCombinedGeometryJigsaw(project, pieces) {
   els.jigsawBoard.setAttribute("viewBox", "0 0 200 200");
   els.jigsawContainer.classList.add("preview-mode");
+  els.jigsawPiecesGroup.removeAttribute("clip-path");
   const complete = pieces.every((piece) => piece.status === "printed");
-  const outlines = project.viewerGeometry.combined?.outline?.length
-    ? [project.viewerGeometry.combined.outline]
-    : project.viewerGeometry.pieces.map((piece) => piece.outline).filter(Boolean);
+  const outlines = project.viewerGeometry.pieces.map((piece) => piece.outline).filter(Boolean);
   const svg = renderExtrudedOutlinesSvg({
     outlines,
-    bounds: project.viewerGeometry.bounds || boundsForOutline(outlines[0]),
+    bounds: project.viewerGeometry.bounds || boundsForOutlines(outlines),
     width: 200,
     height: 200,
     complete,
@@ -945,67 +945,135 @@ function renderExtrudedOutlinesSvg({
   topPattern = false
 }) {
   const prefix = `geom-${Math.floor(Math.random() * 1e9)}`;
-  const mappedOutlines = outlines.map((outline) => mapOutlineToViewBox(outline, bounds, width, height));
-  const paths = mappedOutlines.map((mapped) => outlinePath(mapped.points));
-  const primary = mappedOutlines[0];
-  const rad = (theta * Math.PI) / 180;
-  const dxVec = depth * depthScale * Math.cos(rad);
-  const dyVec = depth * depthScale * Math.sin(rad);
+  const projected = projectExtrudedOutlines(outlines, bounds, width, height, depthScale);
+  const topPaths = projected.outlines.map((item) => outlinePath(item.top));
+  const bottomPaths = projected.outlines.map((item) => outlinePath(item.bottom));
   const topFill = complete ? "#5DCAA5" : "#FAC775";
   const topStroke = complete ? "#84e6c4" : "#ffdba3";
   const mutedFill = revealed ? topFill : "#56615b";
   const mutedStroke = revealed ? topStroke : "rgba(255,255,255,0.22)";
-  const layerCount = 14;
-  let layers = "";
-
-  for (let i = layerCount; i >= 1; i -= 1) {
-    const ratio = i / layerCount;
-    const fill = complete
-      ? `hsl(161, ${64 + ratio * 10}%, ${22 - ratio * 12}%)`
-      : `hsl(36, ${78 + ratio * 8}%, ${31 - ratio * 18}%)`;
-    const hiddenFill = `hsl(150, 8%, ${20 - ratio * 8}%)`;
-    layers += `
-      <g transform="translate(${dxVec * ratio}, ${dyVec * ratio})">
-        ${paths.map((path) => `<path d="${path}" fill="${revealed ? fill : hiddenFill}" stroke="${revealed ? fill : hiddenFill}" stroke-width="1" />`).join("")}
-      </g>
-    `;
-  }
+  const sideFill = revealed ? (complete ? "#1d745e" : "#946319") : "#2d352f";
+  const sideStroke = revealed ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.05)";
+  const shadowFill = "rgba(0,0,0,0.32)";
+  const sideFaces = projected.outlines.flatMap((item) => makeSideFaces(item.top, item.bottom))
+    .sort((a, b) => a.depth - b.depth);
 
   const pattern = topPattern ? `
     <g clip-path="url(#${prefix}-clip)">
-      <circle cx="${primary.cx}" cy="${primary.cy}" r="${primary.size * 0.16}" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="1.4" />
-      <circle cx="${primary.cx}" cy="${primary.cy}" r="${primary.size * 0.29}" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="1.4" />
-      <circle cx="${primary.cx}" cy="${primary.cy}" r="${primary.size * 0.42}" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
-      <line x1="${primary.cx - primary.size * 0.36}" y1="${primary.cy}" x2="${primary.cx + primary.size * 0.36}" y2="${primary.cy}" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
-      <line x1="${primary.cx}" y1="${primary.cy - primary.size * 0.36}" x2="${primary.cx}" y2="${primary.cy + primary.size * 0.36}" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
+      <circle cx="${projected.center.x}" cy="${projected.center.y}" r="${projected.size * 0.16}" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="1.4" />
+      <circle cx="${projected.center.x}" cy="${projected.center.y}" r="${projected.size * 0.29}" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="1.4" />
+      <circle cx="${projected.center.x}" cy="${projected.center.y}" r="${projected.size * 0.42}" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
+      <line x1="${projected.center.x - projected.size * 0.36}" y1="${projected.center.y}" x2="${projected.center.x + projected.size * 0.36}" y2="${projected.center.y}" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
+      <line x1="${projected.center.x}" y1="${projected.center.y - projected.size * 0.36}" x2="${projected.center.x}" y2="${projected.center.y + projected.size * 0.36}" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
     </g>
   ` : "";
 
   const imageLayer = imageHref ? `
-    <image href="${escapeHtml(imageHref)}" x="${primary.imageX}" y="${primary.imageY}" width="${primary.imageSize}" height="${primary.imageSize}" preserveAspectRatio="xMidYMid meet" clip-path="url(#${prefix}-clip)" class="generated-preview-image revealed" />
-    ${paths.map((path) => `<path d="${path}" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.2" />`).join("")}
+    <image href="${escapeHtml(imageHref)}" x="${projected.image.x}" y="${projected.image.y}" width="${projected.image.size}" height="${projected.image.size}" preserveAspectRatio="xMidYMid meet" clip-path="url(#${prefix}-clip)" class="generated-preview-image revealed" />
+    ${topPaths.map((path) => `<path d="${path}" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.2" />`).join("")}
   ` : `
-    ${paths.map((path) => `<path d="${path}" fill="${mutedFill}" stroke="${mutedStroke}" stroke-width="1.4" class="viewer-3d-piece-top" />`).join("")}
+    ${topPaths.map((path) => `<path d="${path}" fill="${mutedFill}" stroke="${mutedStroke}" stroke-width="1.4" class="viewer-3d-piece-top" />`).join("")}
     ${pattern}
   `;
 
-  const clipPaths = paths.map((path) => `<path d="${path}" />`).join("");
+  const clipPaths = topPaths.map((path) => `<path d="${path}" />`).join("");
   return `
     <svg viewBox="0 0 ${width} ${height}" width="100%" height="100%" style="overflow: visible;">
       <defs>
-        <filter id="${prefix}-shadow" x="-20%" y="-20%" width="150%" height="150%">
-          <feGaussianBlur in="SourceAlpha" stdDeviation="6" />
-          <feOffset dx="${dxVec * 1.5}" dy="${dyVec * 1.5}" />
-          <feComponentTransfer><feFuncA type="linear" slope="0.55"/></feComponentTransfer>
-          <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
-        </filter>
         <clipPath id="${prefix}-clip">${clipPaths}</clipPath>
       </defs>
-      ${paths.map((path) => `<path d="${path}" fill="#000" filter="url(#${prefix}-shadow)" opacity="0.55" />`).join("")}
-      ${layers}
+      <ellipse cx="${projected.center.x}" cy="${projected.shadow.y}" rx="${projected.shadow.rx}" ry="${projected.shadow.ry}" fill="${shadowFill}" />
+      ${bottomPaths.map((path) => `<path d="${path}" fill="${sideFill}" opacity="0.58" />`).join("")}
+      ${sideFaces.map((face) => `<path d="${face.path}" fill="${sideFill}" stroke="${sideStroke}" stroke-width="0.55" opacity="${face.opacity.toFixed(2)}" />`).join("")}
       ${imageLayer}
     </svg>
   `;
+}
+
+function projectExtrudedOutlines(outlines, bounds, width, height, depthScale) {
+  const [minX, minY, maxX, maxY] = bounds;
+  const sourceWidth = maxX - minX || 1;
+  const sourceHeight = maxY - minY || 1;
+  const cx = minX + sourceWidth / 2;
+  const cy = minY + sourceHeight / 2;
+  const sourceSpan = Math.max(sourceWidth, sourceHeight);
+  const thickness = sourceSpan * 0.13 * depthScale;
+  const rotation = {
+    z: (theta * Math.PI) / 180,
+    x: (-38 * Math.PI) / 180,
+    y: (8 * Math.PI) / 180
+  };
+
+  const projected = outlines.map((outline) => {
+    const top3d = outline.map(([x, y]) => rotate3d(x - cx, y - cy, thickness / 2, rotation));
+    const bottom3d = outline.map(([x, y]) => rotate3d(x - cx, y - cy, -thickness / 2, rotation));
+    return { top3d, bottom3d };
+  });
+  const all = projected.flatMap((item) => [...item.top3d, ...item.bottom3d]);
+  const minPX = Math.min(...all.map((point) => point.x));
+  const maxPX = Math.max(...all.map((point) => point.x));
+  const minPY = Math.min(...all.map((point) => point.y));
+  const maxPY = Math.max(...all.map((point) => point.y));
+  const projectedWidth = maxPX - minPX || 1;
+  const projectedHeight = maxPY - minPY || 1;
+  const imageSize = Math.min(width, height) * 0.82;
+  const scale = Math.min(imageSize / projectedWidth, imageSize / projectedHeight);
+  const offsetX = (width - projectedWidth * scale) / 2 - minPX * scale;
+  const offsetY = (height - projectedHeight * scale) / 2 - minPY * scale;
+  const toSvg = (point) => ({
+    x: offsetX + point.x * scale,
+    y: offsetY + point.y * scale,
+    z: point.z
+  });
+  const projectedOutlines = projected.map((item) => ({
+    top: item.top3d.map(toSvg),
+    bottom: item.bottom3d.map(toSvg)
+  }));
+  return {
+    outlines: projectedOutlines,
+    center: { x: width / 2, y: height / 2 },
+    size: imageSize,
+    image: { x: (width - imageSize) / 2, y: (height - imageSize) / 2, size: imageSize },
+    shadow: {
+      y: Math.min(height - 17, height / 2 + imageSize * 0.33),
+      rx: imageSize * 0.42,
+      ry: imageSize * 0.12
+    }
+  };
+}
+
+function rotate3d(x, y, z, rotation) {
+  const cosZ = Math.cos(rotation.z);
+  const sinZ = Math.sin(rotation.z);
+  let rx = x * cosZ - y * sinZ;
+  let ry = x * sinZ + y * cosZ;
+  let rz = z;
+
+  const cosX = Math.cos(rotation.x);
+  const sinX = Math.sin(rotation.x);
+  const y2 = ry * cosX - rz * sinX;
+  rz = ry * sinX + rz * cosX;
+  ry = y2;
+
+  const cosY = Math.cos(rotation.y);
+  const sinY = Math.sin(rotation.y);
+  const x2 = rx * cosY + rz * sinY;
+  rz = -rx * sinY + rz * cosY;
+  rx = x2;
+  return { x: rx, y: ry, z: rz };
+}
+
+function makeSideFaces(top, bottom) {
+  return top.map((point, index) => {
+    const nextIndex = (index + 1) % top.length;
+    const points = [point, top[nextIndex], bottom[nextIndex], bottom[index]];
+    const avgZ = points.reduce((total, item) => total + item.z, 0) / points.length;
+    return {
+      depth: avgZ,
+      opacity: 0.52 + Math.min(0.28, Math.max(0, (avgZ + 12) / 80)),
+      path: `M ${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)} L ${points[1].x.toFixed(2)} ${points[1].y.toFixed(2)} L ${points[2].x.toFixed(2)} ${points[2].y.toFixed(2)} L ${points[3].x.toFixed(2)} ${points[3].y.toFixed(2)} Z`
+    };
+  });
 }
 
 function mapOutlineToViewBox(outline, bounds, width, height) {
@@ -1039,9 +1107,16 @@ function boundsForOutline(outline) {
   return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
 }
 
+function boundsForOutlines(outlines) {
+  const points = outlines.flat();
+  return boundsForOutline(points);
+}
+
 function outlinePath(points) {
-  return points.map(([x, y], index) => {
+  return points.map((point, index) => {
     const command = index === 0 ? "M" : "L";
+    const x = Array.isArray(point) ? point[0] : point.x;
+    const y = Array.isArray(point) ? point[1] : point.y;
     return `${command} ${x.toFixed(2)} ${y.toFixed(2)}`;
   }).join(" ") + " Z";
 }
